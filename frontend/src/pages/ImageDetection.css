@@ -1,0 +1,23 @@
+.image-detection-container {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    width: 99vw;
+    gap: 0.5rem;
+    height: 90vh;
+    margin-top: 0.5rem;
+    margin-right: 0.5rem;
+    margin-left: 0.5rem;
+}
+
+.command-box {
+    grid-column: 2 / 4;
+    grid-row: 5 / 6;
+    border : 2px solid black;
+}
+
+.reply-box {
+    grid-column: 4 / 6;
+    grid-row: 5 / 6;
+    border : 2px solid black;
+}

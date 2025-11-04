@@ -1,10 +1,15 @@
 import {NavLink} from "react-router-dom";
+import "./MenuBar.css"
 
 export default function MenuBar() {
     return (
-        <nav style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+        <nav>
+            <div>Logo</div>
             <NavLink to="/">Home</NavLink>
-            <NavLink to="/object">Object</NavLink>
+            <NavLink to="/image">Image</NavLink>
+            <NavLink to="/music">Music</NavLink>
+            <NavLink to="/chatbot">Chatbot</NavLink>
+            <NavLink to="/news">News</NavLink>
         </nav>
     )
 }
