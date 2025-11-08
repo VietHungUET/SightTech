@@ -186,10 +186,29 @@ def format_audio_response(response, task):
             full_text = f"This image can be described as: {response}"
 
         case "music_recognition":
-            full_text = (
-                f"You are listening to '{response['title']}' by {response['artist']}. "
-                f"It was released in {response.get('year', 'an unknown year')}."
-            )
+            if response.get('type') == 'music':
+                music_info = response.get('music_info', {})
+                title = music_info.get('title', 'Unknown')
+                artist = music_info.get('artist', 'Unknown Artist')
+                album = music_info.get('album')
+                
+                full_text = f"I found the song! It's '{title}' by {artist}. "
+                
+                if album and album != 'Unknown Album':
+                    full_text += f"From the album '{album}'. "
+        
+                spotify = music_info.get('spotify', {})
+                if spotify:
+                    if spotify.get('popularity', 0) > 80:
+                        full_text += "This is a very popular song. "
+            
+                    if spotify.get('preview_url'):
+                        full_text += "I can play a 30-second preview for you. "
+            
+                    full_text += "The full song is available on Spotify for free with ads. "
+            
+                    if spotify.get('explicit'):
+                        full_text += "This song contains explicit content."
 
         case "general_question_answering":
             full_text = response

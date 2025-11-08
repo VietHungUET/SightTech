@@ -1,5 +1,6 @@
 import base64
 import cv2
+import logging
 from fastapi import FastAPI, Form,File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,6 +39,11 @@ import tempfile
 import requests
 from collections import OrderedDict
 from .services.all_task.pipeline import get_llm_response
+from .services.music_detection.pipeline import execute_music_detection
+from .utils.formatter import format_audio_response
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 start = time.time()
 # ocr = OcrRecognition()
@@ -158,6 +164,8 @@ async def product_recognition(file: UploadFile = File(...)):
         print(f"Lỗi xảy ra: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+
+
 # image_path = "./app/dis.jpg"  
 
 # calculate_focal_length_stream(image_path)
@@ -205,6 +213,63 @@ async def distance_estimate(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Lỗi xảy ra: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/music_detection")
+async def music_detection(file: UploadFile = File(...)):
+    temp_path = None
+    
+    try:
+        # Lưu file tạm
+        with NamedTemporaryFile(delete=False, suffix=".webm") as temp:
+            content = await file.read()
+            temp.write(content)
+            temp_path = temp.name
+        
+        result = execute_music_detection(
+            audio_file_path=temp_path,
+            audd_api_key=config.AUDD_API_KEY,
+            openai_api_key=config.OPENAI_API_KEY
+        )
+        
+        if not result['success']:
+            raise HTTPException(
+                status_code=500, 
+                detail=result.get('error', 'Unknown error')
+            )
+        
+        audio_path = format_audio_response(
+            result, 
+            "music_recognition"
+        )
+        
+        if not audio_path:
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to generate audio response"
+            )
+        
+        # Thêm audio_path vào result
+        result['audio_path'] = audio_path
+        
+        logger.info(f"Music detection successful: {result.get('type')}")
+        
+        return JSONResponse(content=result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in music detection endpoint: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Internal server error: {str(e)}"
+        )
+    finally:
+        # Cleanup temp file
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except Exception as e:
+                logger.warning(f"Could not delete temp file: {e}")
 
 
 # collection = connect_mongodb()

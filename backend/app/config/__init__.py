@@ -16,6 +16,7 @@ class Config(object):
         self.DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY')
         self.OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
         self.GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+        self.AUDD_API_KEY = os.getenv('AUDD_API_KEY')
         # self.VOICE_RSS = os.getenv('Voice_RSS')
 
 config = Config()
