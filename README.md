@@ -12,24 +12,7 @@ Before setting up the project, ensure you have the following installed:
 - **Node.js** (v16 or higher) - [Download here](https://nodejs.org/)
 - **Python** (v3.8 or higher) - [Download here](https://www.python.org/downloads/)
 - **pip** (Python package manager, usually comes with Python)
-- **Git** (for cloning the repository)
-
----
-
-## Backend Setup
-
-### 1. Navigate to the backend directory:
-
-```bash
-cd backend
-```
-
-### 2. Create a virtual environment and activate it:
-
-**On Windows (CMD):**
-```cmd
-python -m venv venv
-venv\Scripts\activate
+- **Git** (fps1
 ```
 
 **On macOS/Linux:**
