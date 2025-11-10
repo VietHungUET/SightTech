@@ -12,7 +12,7 @@ from sympy import content
 
 # from app.article_reading.pipeline import execute_pipeline
 # from app.question_answering.pipeline import ask_general_question
-from app.utils.audio import FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH, FEATURE_LABELS, FEATURE_NAMES, find_navigation_intent, route_query_semantically
+from app.utils.audio import FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH, FEATURE_LABELS, FEATURE_NAMES, find_navigation_intent, route_query_semantically, embedder
 from app.utils.deepgram import transcribe_audio
 from .utils.formatter import create_pdf, create_pdf_async, format_article_audio_response, format_response_distance_estimate_with_openai, format_response_product_recognition_with_openai, format_audio_response
 # from .currency_detection.yolov8.YOLOv8 import YOLOv8
@@ -397,10 +397,7 @@ async def music_detection(file: UploadFile = File(...)):
 #         print(e)
 #         raise HTTPException(status_code=500, detail="Internal server error")
 
-# embedder = SentenceTransformer("all-MiniLM-L6-v2")
-
-# --- Modified API Endpoint ---
-# @app.post("/transcribe_audio_v2")
+@app.post("/transcribe_audio_v2")
 async def process_voice_command(file: UploadFile = File(...), current_feature: str | None = None):
     """
     Processes voice input, distinguishing navigation commands from feature queries.
@@ -504,72 +501,6 @@ async def process_voice_command(file: UploadFile = File(...), current_feature: s
              os.unlink(tmp_path)
 
 from typing import Annotated
-
-
-# @app.post("/transcribe_audio")
-# async def voice_command(
-#     file: Annotated[UploadFile, File()],
-#     current_feature: Annotated[str, Form()]
-#     ):
-#     with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
-#         tmp.write(await file.read())
-#         tmp_path = tmp.name
-
-#     try:
-#         transcript_result = transcribe_audio(tmp_path)
-#         transcript_text = transcript_result.get("transcript", "").lower()
-
-#         print("Transcript:", transcript_text)
-#         print("Current Feature:", current_feature)
-
-#         # Step 1: Exact keyword match
-#         for label, keywords in FEATURE_LABELS.items():
-#             for keyword in keywords:
-#                 if keyword.lower() in transcript_text:
-#                     if label == current_feature:
-#                         if "read" not in transcript_text.lower():
-#                             return {
-#                                 "command": current_feature,
-#                                 "intent": "query",
-#                                 "confidence": 0.9,  # high confidence
-#                                 "query": transcript_text
-#                             }
-#                         else:
-#                             return {
-#                                 "command": current_feature,
-#                                 "intent": "read",
-#                                 "confidence": 0.9,  # high confidence
-#                                 "query": transcript_text
-#                             }
-                        
-#                     return {
-#                         "command": label,
-#                         "intent": "navigate",
-#                         "confidence": 1.0,  # exact match = high confidence
-#                         "query": transcript_text
-#                     }
-
-#         # Step 2: Semantic similarity fallback
-#         transcript_embed = embedder.encode(transcript_text, convert_to_tensor=True)
-#         best_match, best_score = None, -1
-
-#         for label, phrases in FEATURE_LABELS.items():
-#             for phrase in phrases:
-#                 phrase_embed = embedder.encode(phrase, convert_to_tensor=True)
-#                 score = util.cos_sim(transcript_embed, phrase_embed).item()
-#                 if score > best_score:
-#                     best_match, best_score = label, score
-
-#         return {
-#             "command": best_match,
-#             "intent": "navigate",
-#             "confidence": round(best_score, 3),
-#             "query": transcript_text
-#         }
-#     except Exception as e:
-#         print("❌ Error:", e)
-#         return {"error": "Failed to process audio."}
-
 
 class NewsQuery(BaseModel):
     news_query: str

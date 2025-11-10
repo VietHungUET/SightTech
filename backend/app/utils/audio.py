@@ -1,7 +1,7 @@
 
 from collections import OrderedDict
 from sentence_transformers import SentenceTransformer, util
-
+from ..config.language_config import LanguageConfig
 
 embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
@@ -79,45 +79,24 @@ for feature, keywords in raw_feature_labels.items():
 FEATURE_LABELS = deduped_feature_labels
 
 
-# --- Use the Navigation Triggers and Feature Names defined above ---
-NAVIGATION_TRIGGERS = [
-    "switch to", "go to", "open", "activate", "change to", "navigate to",
-    "show me", "i want to use", "let's use", "start"
-]
 
-FEATURE_NAMES = { # Simplified for clarity, map name to canonical key
-    "Text": ["text", "reading", "read aloud", "narrate"],
-    "Currency": ["currency", "money", "exchange"],
-    "Object": ["object", "thing", "item identification", "find"], # Added 'find' here
-    "Product": ["product", "barcode", "logo", "brand"],
-    "Distance": ["distance", "measurement", "how far", "range"],
-    "Face": ["face", "person", "recognition", "who is this"],
-    "Music": ["music", "song", "track", "audio", "listen"], # Added audio/listen
-    "News": ["news", "articles", "headlines", "summary"],
-    "Chatbot": ["chat", "talk", "ask", "question", "assistant"],
-    "Help": ["help", "support", "guide", "assist"],
-    "Capture": ["camera", "picture", "photo", "capture", "take"],
-    "Play": ["play", "begin", "start playback", "launch"], # 'start'/'launch' could be navigation OR action
-    "Stop": ["stop", "pause", "halt", "end", "cancel"],
-    "Detect": ["detect", "scan", "recognize surroundings"] # 'recognize' could be nav or action
-}
+NAVIGATION_TRIGGERS = LanguageConfig.get_all_triggers()
 
-# Use your original detailed keywords for semantic matching *if* it's not a navigation command
-FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH = deduped_feature_labels # Use the deduplicated dict from your code
+FEATURE_NAMES = LanguageConfig.get_feature_names_dict()
+
+FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH = deduped_feature_labels 
 
 # --- Helper function to find navigation intent ---
 def find_navigation_intent(text):
     text_lower = text.lower()
     for trigger in NAVIGATION_TRIGGERS:
-        trigger_pattern = trigger.lower() + r"\s+" # Trigger followed by space
-        if text_lower.startswith(trigger_pattern):
+        trigger_lower = trigger.lower() + " " 
+        if text_lower.startswith(trigger_lower):
             # Extract what comes after the trigger
-            potential_feature_phrase = text_lower[len(trigger_pattern):].strip()
+            potential_feature_phrase = text_lower[len(trigger_lower):].strip()
             # Check if the rest matches a feature name/alias
             for feature_key, aliases in FEATURE_NAMES.items():
                 for alias in aliases:
-                    # Use simple startswith or exact match for the feature part
-                    # Or consider fuzzy matching if needed
                     if potential_feature_phrase.startswith(alias.lower()):
                          # Found a navigation command!
                         return {
@@ -125,13 +104,8 @@ def find_navigation_intent(text):
                             "target_feature": feature_key,
                             "confidence": 0.95 # High confidence for explicit match
                         }
-            # If trigger matched but no known feature followed, maybe it's ambiguous
-            # Or maybe it's a generic command like "start listening" (which might be 'Play' or 'Music')
-            # For now, we'll assume if no feature matches after trigger, it's not navigation
             pass # Continue checking other triggers
 
-    # Special case for commands that are just the feature name (less ideal but common)
-    # This is lower confidence than explicit triggers
     for feature_key, aliases in FEATURE_NAMES.items():
         for alias in aliases:
             if text_lower == alias.lower():
