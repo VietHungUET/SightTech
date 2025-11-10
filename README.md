@@ -55,6 +55,7 @@ Create a new file named `.env`
 - **OpenAI API Key**: Sign up at [https://platform.openai.com/](https://platform.openai.com/)
 - **Groq API Key**: Sign up at [https://console.groq.com/](https://console.groq.com/) (Free unlimited)
 - **Google API Key**: Get from [Google Cloud Console](https://console.cloud.google.com/)
+- **Deepgram API Key**: Sign up at [https://console.deepgram.com/](https://console.deepgram.com/) (Free tier: $200 credit, ~45,000 minutes of audio transcription)
 
 ### 5. Start the backend server:
 
