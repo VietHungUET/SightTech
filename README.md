@@ -29,7 +29,7 @@ cd backend
 **On Windows (CMD):**
 ```cmd
 python -m venv venv
-venv\Scripts\activate
+.\venv\Scripts\Activate.ps1  
 ```
 
 **On macOS/Linux:**
