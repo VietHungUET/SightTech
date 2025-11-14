@@ -377,6 +377,42 @@ async def music_detection(file: UploadFile = File(...)):
 #         print(f"Error in recognition endpoint: {e}")
 #         raise HTTPException(status_code=404, detail="Failed to process recognition")
 
+@app.post("/transcribe_audio_simple")
+async def transcribe_audio_simple(file: UploadFile = File(...)):
+    """
+    Endpoint đơn giản chỉ transcribe audio, không phân tích intent.
+    Dùng cho onboarding hoặc các trường hợp chỉ cần transcript thuần.
+    """
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        transcript_result = transcribe_audio(tmp_path)
+        os.remove(tmp_path)
+        
+        # Kiểm tra error
+        if "error" in transcript_result:
+            return {
+                "transcript": "",
+                "success": False,
+                "error": transcript_result["error"]
+            }
+        
+        return {
+            "transcript": transcript_result["transcript"],
+            "success": True
+        }
+        
+    except Exception as e:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        
+        return {
+            "transcript": "",
+            "success": False,
+            "error": str(e)
+        }
 
 @app.post("/transcribe_audio_v2")
 async def process_voice_command(file: UploadFile = File(...), current_feature: str | None = None):
@@ -478,12 +514,10 @@ async def process_voice_command(file: UploadFile = File(...), current_feature: s
 
     except Exception as e:
         print(f"❌ Error processing voice command: {e}")
-        # Log the exception traceback for debugging
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to process audio: {str(e)}")
     finally:
-        # Clean up the temporary file
         import os
         if 'tmp_path' in locals() and os.path.exists(tmp_path):
              os.unlink(tmp_path)
