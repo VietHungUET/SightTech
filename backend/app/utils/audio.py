@@ -2,6 +2,7 @@
 from collections import OrderedDict
 from sentence_transformers import SentenceTransformer, util
 from ..config.language_config import LanguageConfig
+from difflib import SequenceMatcher
 
 embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
@@ -86,6 +87,46 @@ FEATURE_NAMES = LanguageConfig.get_feature_names_dict()
 
 FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH = deduped_feature_labels 
 
+# === ACTION COMMANDS ===
+ACTION_COMMANDS = {
+    "en": {
+        "play": "Play",
+        "stop": "Stop",
+        "pause": "Stop",
+        "track": "Track",
+        "detect": "Detect",
+        "capture": "Capture",
+        "take": "Capture",
+        "snap": "Capture",
+        "read": "Read",
+        "convert": "Convert",
+        "find": "Find",
+        "search": "Find",
+        "locate": "Find"
+    },
+    "vi": {
+        "phát": "Play",
+        "dừng": "Stop",
+        "tạm dừng": "Stop",
+        "theo dõi": "Track",
+        "phát hiện": "Detect",
+        "chụp": "Capture",
+        "đọc": "Read",
+        "chuyển đổi": "Convert",
+        "tìm": "Find",
+        "tìm kiếm": "Find"
+    }
+}
+
+def get_all_action_commands():
+    """Get all action commands from all languages"""
+    commands = {}
+    for lang_dict in ACTION_COMMANDS.values():
+        commands.update(lang_dict)
+    return commands
+
+ALL_ACTION_COMMANDS = get_all_action_commands()
+
 # --- Helper function to find navigation intent ---
 def find_navigation_intent(text):
     text_lower = text.lower()
@@ -116,6 +157,129 @@ def find_navigation_intent(text):
                 }
 
     return None # No clear navigation intent found
+
+# --- Helper function for fuzzy string matching ---
+def fuzzy_match_word(word, candidates, threshold=0.75):
+    """
+    Tìm từ gần giống nhất trong danh sách candidates
+    
+    Args:
+        word: Từ cần match (vd: "fi", "trak")
+        candidates: Danh sách các từ chuẩn
+        threshold: Ngưỡng similarity (0.0-1.0)
+    
+    Returns:
+        (matched_word, confidence) hoặc (None, 0)
+    """
+    best_match = None
+    best_ratio = 0
+    
+    for candidate in candidates:
+        ratio = SequenceMatcher(None, word.lower(), candidate.lower()).ratio()
+        if ratio > best_ratio and ratio >= threshold:
+            best_ratio = ratio
+            best_match = candidate
+    
+    return best_match, best_ratio
+
+# --- Helper function to find action intent ---
+def find_action_intent(text):
+    """
+    Detect action commands like Play, Stop, Track, Find, etc.
+    Hỗ trợ fuzzy matching cho trường hợp phát âm không chuẩn
+    
+    Args:
+        text: User command text
+    
+    Returns:
+        {
+            "intent": "action",
+            "action_verb": "Play",
+            "target_feature": "Music" (nếu có),
+            "confidence": 0.85
+        }
+        hoặc None nếu không phải action
+    """
+    text_lower = text.lower().strip()
+    words = text_lower.split()
+    
+    # Check if first word is an action verb (EXACT MATCH)
+    first_word = words[0] if words else ""
+    
+    if first_word in ALL_ACTION_COMMANDS:
+        action_verb = ALL_ACTION_COMMANDS[first_word]
+        
+        # Extract target if any (e.g., "play music" → target="music")
+        target_phrase = " ".join(words[1:]) if len(words) > 1 else None
+        
+        # Try to match target to a feature
+        target_feature = None
+        if target_phrase:
+            for feature_key, aliases in FEATURE_NAMES.items():
+                for alias in aliases:
+                    if target_phrase.startswith(alias.lower()):
+                        target_feature = feature_key
+                        break
+                if target_feature:
+                    break
+        
+        return {
+            "intent": "action",
+            "action_verb": action_verb,
+            "target_feature": target_feature,
+            "original_text": text,
+            "confidence": 0.85
+        }
+    
+    # FUZZY MATCH: Check if first word is similar to an action verb
+    # Ví dụ: "fi" → "find", "trak" → "track"
+    matched_word, match_confidence = fuzzy_match_word(
+        first_word, 
+        ALL_ACTION_COMMANDS.keys(),
+        threshold=0.5  
+    )
+    
+    if matched_word:
+        action_verb = ALL_ACTION_COMMANDS[matched_word]
+        
+        # Extract target
+        target_phrase = " ".join(words[1:]) if len(words) > 1 else None
+        target_feature = None
+        
+        if target_phrase:
+            for feature_key, aliases in FEATURE_NAMES.items():
+                for alias in aliases:
+                    if target_phrase.startswith(alias.lower()):
+                        target_feature = feature_key
+                        break
+                if target_feature:
+                    break
+        
+        # Confidence giảm xuống vì là fuzzy match
+        confidence = 0.75 * match_confidence  # Nhân với match confidence
+        
+        return {
+            "intent": "action",
+            "action_verb": action_verb,
+            "target_feature": target_feature,
+            "original_text": text,
+            "confidence": round(confidence, 2)
+        }
+    
+    # Check for action verb anywhere in the phrase (lower confidence)
+    for word in words:
+        if word in ALL_ACTION_COMMANDS:
+            action_verb = ALL_ACTION_COMMANDS[word]
+            
+            return {
+                "intent": "action",
+                "action_verb": action_verb,
+                "target_feature": None,  # Cần semantic routing
+                "original_text": text,
+                "confidence": 0.65  # Lower confidence
+            }
+    
+    return None
 
 # --- Helper function for Semantic Query Routing ---
 def route_query_semantically(query_text, embedder, feature_keywords):

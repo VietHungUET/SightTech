@@ -12,7 +12,7 @@ from sympy import content
 
 # from app.article_reading.pipeline import execute_pipeline
 # from app.question_answering.pipeline import ask_general_question
-from app.utils.audio import FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH, FEATURE_LABELS, FEATURE_NAMES, find_navigation_intent, route_query_semantically, embedder
+from app.utils.audio import FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH, FEATURE_LABELS, FEATURE_NAMES, find_navigation_intent, find_action_intent, route_query_semantically, embedder
 from app.utils.deepgram import transcribe_audio
 from .utils.formatter import create_pdf, create_pdf_async, format_article_audio_response, format_response_distance_estimate_with_openai, format_response_product_recognition_with_openai, format_audio_response
 # from .currency_detection.yolov8.YOLOv8 import YOLOv8
@@ -378,25 +378,6 @@ async def music_detection(file: UploadFile = File(...)):
 #         raise HTTPException(status_code=404, detail="Failed to process recognition")
 
 
-# @app.post("music_detection")
-# async def music_detection(file: UploadFile = File(...)):
-#     try:
-#         with NamedTemporaryFile(delete=False) as temp:
-#             temp.write(file.file.read())
-#             temp_path = temp.name
-
-#         audio_path = format_audio_response(temp_path, "music_recognition")
-#         if audio_path:
-#             return JSONResponse(content={
-#                 "audio_path": audio_path,
-#             })
-#         else:
-#             raise HTTPException(status_code=500, detail="Failed to generate audio response")
-
-#     except Exception as e:
-#         print(e)
-#         raise HTTPException(status_code=500, detail="Internal server error")
-
 @app.post("/transcribe_audio_v2")
 async def process_voice_command(file: UploadFile = File(...), current_feature: str | None = None):
     """
@@ -426,11 +407,10 @@ async def process_voice_command(file: UploadFile = File(...), current_feature: s
         if not transcript_text:
              raise HTTPException(status_code=400, detail="Empty transcript received.")
 
-        # --- STAGE 1: Check for Navigation Intent ---
+        # Check for Navigation Intent ---
         navigation_result = find_navigation_intent(transcript_text)
 
         if navigation_result:
-            # It's a command to navigate!
             return {
                 "transcript": transcript_result,
                 "intent": navigation_result["intent"],
@@ -439,31 +419,39 @@ async def process_voice_command(file: UploadFile = File(...), current_feature: s
                 "query": None # Not a query
             }
 
-        # --- STAGE 2: Treat as Query (if not navigation) ---
-        # Option A: If context is known, assume query is for the current feature
-        if current_feature and current_feature in FEATURE_NAMES: # Check if valid feature key
-             # Simple Action Keywords check within current context (e.g., "stop", "play")
-             # These might override semantic routing if they are very clear actions
-             if transcript_text.lower() == "stop":
-                  return {
-                       "transcript": transcript_result,
-                       "intent": "action", # Could be a specific 'action' intent
-                       "target_feature": current_feature, # Action applies to current feature
-                       "command": "Stop", # Specific action identified
-                       "confidence": 0.99,
-                       "query": transcript_text
-                  }
-             if transcript_text.lower() == "play":
-                   return {
-                       "transcript": transcript_result,
-                       "intent": "action",
-                       "target_feature": current_feature,
-                       "command": "Play",
-                       "confidence": 0.99,
-                       "query": transcript_text
-                  }
+        # Check for Action Intent 
+        action_result = find_action_intent(transcript_text)
 
-             # Otherwise, it's a query for the current feature
+        if action_result:
+            if action_result["target_feature"]:
+                return {
+                    "transcript": transcript_result,
+                    "intent": "action",
+                    "command": action_result["action_verb"],
+                    "target_feature": action_result["target_feature"],
+                    "confidence": action_result["confidence"],
+                    "query": transcript_text
+                }
+            
+            target = current_feature
+            if not target:
+                semantic_result = route_query_semantically(
+                    transcript_text,
+                    embedder,
+                    FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH
+                )
+                target = semantic_result["target_feature"]
+            
+            return {
+                "transcript": transcript_result,
+                "intent": "action",
+                "command": action_result["action_verb"],
+                "target_feature": target,
+                "confidence": action_result["confidence"],
+                "query": transcript_text
+            }
+
+        if current_feature and current_feature in FEATURE_NAMES: 
              return {
                 "transcript": transcript_result,
                 "intent": "query",

@@ -24,7 +24,7 @@ GENERAL_QA_PROMPT = (
 )
 
 IMAGE_CAPTIONING_PROMPT = (
-    "You are assisting a visually impaired person. Provide a brief, concise description of the image in one sentence, including key details. Respond succinctly."
+    "You are assisting a visually impaired person. Provide a clear and natural one-sentence description of the image, mentioning the main subjects, actions, and setting."
 )
 
 PRODUCT_RECOGNITION_PROMPT = """
@@ -84,9 +84,9 @@ def get_llm(provider: str):
     if provider == "openai":
         return ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
     elif provider == "gemini":
-        return ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp", temperature=0.2, google_api_key=os.getenv("GOOGLE_API_KEY"))
+        return ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2, google_api_key=os.getenv("GOOGLE_API_KEY"))
     elif provider == "groq":
-        return ChatGroq(model="llama3-8b-8192", groq_api_key=os.getenv("GROQ_API_KEY"))
+        return ChatGroq(model="llama-3.1-8b-instant", groq_api_key=os.getenv("GROQ_API_KEY"))
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
