@@ -1,7 +1,7 @@
 import base64
 import cv2
 import logging
-from fastapi import FastAPI, Form,File, UploadFile, HTTPException
+from fastapi import FastAPI, Form,File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fpdf import FPDF
@@ -54,6 +54,32 @@ start = time.time()
 print(f"All Models loaded in {time.time() - start:.2f} seconds", file=sys.stderr)
 
 app = FastAPI()
+
+# Import WebSocket handlers for real-time description
+from .services.stream_video.websocket_server import (
+    websocket_realtime_description,
+    start_realtime_description,
+    stop_realtime_description,
+    get_description_status,
+    stream_descriptions_to_clients
+)
+
+# Start background task for streaming descriptions
+@app.on_event("startup")
+async def startup_event():
+    """Start background task when FastAPI starts"""
+    asyncio.create_task(stream_descriptions_to_clients())
+    print("[STARTUP] WebSocket description streaming task started")
+
+# Configure CORS for WebSocket
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Frontend URLs
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Define allowed origins (frontend URLs)
 
 @app.get("/")
@@ -591,6 +617,36 @@ async def general_qa(message: str = Form(...)):
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.websocket("/ws/realtime-description")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time scene description.
+    Frontend connects here to receive continuous descriptions.
+    """
+    await websocket_realtime_description(websocket)
+
+
+@app.post("/realtime-description/start")
+async def start_description():
+    """Start real-time description service"""
+    return await start_realtime_description()
+
+
+@app.post("/realtime-description/stop")
+async def stop_description():
+    """Stop real-time description service"""
+    return await stop_realtime_description()
+
+
+@app.get("/realtime-description/status")
+async def description_status():
+    """Get status of real-time description service"""
+    return await get_description_status()
+
+
+# ============================================================================
 
 
 # @app.get("/download_pdf")

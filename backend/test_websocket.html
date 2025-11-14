@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Description Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ccc;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #4CAF50;
+        }
+
+        .status-dot.connecting {
+            background: #FFC107;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .start-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .stop-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .stop-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(245, 87, 108, 0.4);
+        }
+
+        .description-box {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 150px;
+            margin-bottom: 20px;
+        }
+
+        .description-box h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .description-text {
+            color: #555;
+            font-size: 16px;
+            line-height: 1.6;
+            font-style: italic;
+        }
+
+        .description-text.empty {
+            color: #999;
+        }
+
+        .log-box {
+            background: #1e1e1e;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .log-box h4 {
+            color: #fff;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .log-entry {
+            color: #aaa;
+            margin-bottom: 5px;
+            padding: 5px;
+            border-left: 3px solid #667eea;
+            padding-left: 10px;
+        }
+
+        .log-entry.info { border-left-color: #4CAF50; color: #4CAF50; }
+        .log-entry.warning { border-left-color: #FFC107; color: #FFC107; }
+        .log-entry.error { border-left-color: #f5576c; color: #f5576c; }
+
+        .settings {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .settings label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .settings input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .timestamp {
+            color: #999;
+            font-size: 11px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 Real-time Scene Description</h1>
+        <p class="subtitle">Test WebSocket connection without frontend</p>
+
+        <div class="status">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Disconnected</span>
+        </div>
+
+        <div class="controls">
+            <button class="start-btn" id="startBtn">
+                <span>▶️</span> Start Description
+            </button>
+            <button class="stop-btn" id="stopBtn" disabled>
+                <span>⏹️</span> Stop
+            </button>
+        </div>
+
+        <div class="description-box">
+            <h3>Current Scene:</h3>
+            <p class="description-text empty" id="descriptionText">
+                Waiting for description...
+            </p>
+            <p class="timestamp" id="timestamp"></p>
+        </div>
+
+        <div class="settings">
+            <label>
+                <input type="checkbox" id="autoSpeakCheckbox" checked>
+                Auto-speak descriptions (Web Speech API)
+            </label>
+            <label>
+                <input type="checkbox" id="showLogsCheckbox" checked>
+                Show console logs
+            </label>
+        </div>
+
+        <div class="log-box">
+            <h4>📋 Console Logs:</h4>
+            <div id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const descriptionText = document.getElementById('descriptionText');
+        const timestamp = document.getElementById('timestamp');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const logContainer = document.getElementById('logContainer');
+        const autoSpeakCheckbox = document.getElementById('autoSpeakCheckbox');
+        const showLogsCheckbox = document.getElementById('showLogsCheckbox');
+
+        // Configuration
+        const BACKEND_URL = 'http://localhost:8000';
+        const WS_URL = 'ws://localhost:8000/ws/realtime-description';
+
+        // Logging
+        function log(message, type = 'info') {
+            if (!showLogsCheckbox.checked) return;
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Keep only last 20 logs
+            if (logContainer.children.length > 20) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+        // Update status
+        function updateStatus(status, text) {
+            statusDot.className = `status-dot ${status}`;
+            statusText.textContent = text;
+        }
+
+        // Speak text using Web Speech API
+        function speakText(text) {
+            if (!autoSpeakCheckbox.checked) return;
+            
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = 1.1; // Slightly faster
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            
+            utterance.onstart = () => log('🔊 Speaking...', 'info');
+            utterance.onend = () => log('✅ Speech finished', 'info');
+            utterance.onerror = (e) => log(`❌ Speech error: ${e.error}`, 'error');
+            
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Start real-time description
+        async function startRealtime() {
+            try {
+                log('🚀 Starting backend service...', 'info');
+                updateStatus('connecting', 'Starting...');
+                
+                // Start backend camera
+                const response = await fetch(`${BACKEND_URL}/realtime-description/start`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                log(`✅ Backend: ${result.message}`, 'info');
+                
+                // Connect WebSocket
+                log('🔌 Connecting WebSocket...', 'info');
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = () => {
+                    log('✅ WebSocket connected!', 'info');
+                    updateStatus('connected', 'Connected - Listening...');
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                };
+                
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'description') {
+                        log(`📝 New description received`, 'info');
+                        
+                        // Update UI
+                        descriptionText.textContent = data.text;
+                        descriptionText.classList.remove('empty');
+                        
+                        const time = new Date(data.timestamp * 1000).toLocaleTimeString();
+                        timestamp.textContent = `Last updated: ${time}`;
+                        
+                        // Speak
+                        speakText(data.text);
+                    } else if (data.type === 'status') {
+                        log(`ℹ️ Status: ${data.message}`, 'info');
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    log('❌ WebSocket error!', 'error');
+                    console.error('WebSocket error:', error);
+                    updateStatus('', 'Error');
+                };
+                
+                ws.onclose = () => {
+                    log('🔌 WebSocket disconnected', 'warning');
+                    updateStatus('', 'Disconnected');
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                };
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                console.error('Error:', error);
+                updateStatus('', 'Error');
+            }
+        }
+
+        // Stop real-time description
+        async function stopRealtime() {
+            try {
+                log('🛑 Stopping...', 'warning');
+                
+                if (ws) {
+                    ws.send(JSON.stringify({ action: 'stop' }));
+                    ws.close();
+                }
+                
+                // Stop backend
+                const response = await fetch(`${BACKEND_URL}/realtime-description/stop`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                log(`✅ ${result.message}`, 'info');
+                
+                updateStatus('', 'Stopped');
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                
+                // Stop any ongoing speech
+                window.speechSynthesis.cancel();
+                
+            } catch (error) {
+                log(`❌ Error stopping: ${error.message}`, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', startRealtime);
+        stopBtn.addEventListener('click', stopRealtime);
+
+        // Initial log
+        log('🎯 Test page loaded. Click "Start Description" to begin.', 'info');
+        log(`📡 Backend: ${BACKEND_URL}`, 'info');
+        log(`🔌 WebSocket: ${WS_URL}`, 'info');
+    </script>
+</body>
+</html>
