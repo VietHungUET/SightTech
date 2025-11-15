@@ -6,8 +6,8 @@ export default function MenuBar() {
         <nav>
             <div>Logo</div>
             <NavLink to="/">Home</NavLink>
-            <NavLink to="/image">Image</NavLink>
-            <NavLink to="/music">Music</NavLink>
+            <NavLink to="/image">Image Detection</NavLink>
+            <NavLink to="/music">Music Detection</NavLink>
             <NavLink to="/chatbot">Chatbot</NavLink>
             <NavLink to="/news">News</NavLink>
         </nav>
