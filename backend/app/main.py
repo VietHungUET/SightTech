@@ -24,13 +24,13 @@ from tempfile import NamedTemporaryFile
 # from .product_recognition.pipeline import BarcodeProcessor
 from deepface import DeepFace
 import time
-# from .image_captioning.provider.gemini.gemini import gen_img_description
+#from app.services.image_captioning.provider.gemini.gemini import gen_img_description
 import asyncio
 # from .distance_estimate.stream_video_distance import calculate_focal_length_stream, calculate_distance_from_image
 # from .face_detection.detectMongo import find_existing_face, process_frame, save_embedding_to_db, connect_mongodb, calculate_focal_length
 import json
 import mimetypes
-# from .image_captioning.provider.gpt4.gpt4 import OpenAIProvider
+#from app.services.image_captioning.provider.gpt4.gpt4 import OpenAIProvider
 from fastapi import FastAPI, UploadFile, File
 from sentence_transformers import SentenceTransformer, util
 from dotenv import load_dotenv
@@ -141,27 +141,39 @@ async def currency_detection(file: UploadFile = File(...)):
 @app.post("/image_captioning")
 async def image_captioning(file: UploadFile = File(...)):
     try:
-        start = time.time()
         image_data = await file.read()
         base64_image = base64.b64encode(image_data).decode("utf-8")
 
-        result = get_llm_response(
+        # 1. Gọi caption
+        caption = get_llm_response(
             query="Extract text from this image.",
             task="image_captioning",
             base64_image=base64_image,
         )
 
-        if not result:
-            raise HTTPException(status_code=500, detail="Failed to generate text response")
+        if not caption:
+            raise HTTPException(status_code=500, detail="Failed to generate caption")
 
+        # 2. Convert caption → audio
+        audio_path = format_audio_response(
+            caption,
+            "image_captioning"
+        )
+
+        if not audio_path:
+            raise HTTPException(status_code=500, detail="Failed to generate audio")
+
+        # 3. Trả về caption + audio url
         return JSONResponse(content={
             "status": "success",
-            "text": result,
+            "text": caption,
+            "audio_url": f"/download_audio?audio_path={audio_path}"
         })
 
     except Exception as e:
-        print(f"Lỗi xảy ra: {e}")
+        print(f"Error:", e)
         raise HTTPException(status_code=500, detail="Internal server error")
+
 
     
 
