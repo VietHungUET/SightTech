@@ -11,7 +11,7 @@ from pydantic import BaseModel, Json
 from sympy import content
 
 # from app.article_reading.pipeline import execute_pipeline
-# from app.question_answering.pipeline import ask_general_question
+from app.services.question_answering.pipeline import ask_general_question
 from app.utils.audio import FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH, FEATURE_LABELS, FEATURE_NAMES, find_navigation_intent, find_action_intent, route_query_semantically, embedder
 from app.utils.deepgram import transcribe_audio
 from .utils.formatter import create_pdf, create_pdf_async, format_article_audio_response, format_response_distance_estimate_with_openai, format_response_product_recognition_with_openai, format_audio_response
@@ -74,7 +74,7 @@ async def startup_event():
 # Configure CORS for WebSocket
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Frontend URLs
+    allow_origins=["*"],  # Frontend URLs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -594,29 +594,36 @@ class ChatbotQuery(BaseModel):
 
 @app.post("/general_question_answering")
 async def general_qa(message: str = Form(...)):
-
     try:
-
-        # Step 3: Ask the LLM to answer the question
+        # 1. LLM trả lời
         answer = get_llm_response(
             query=message,
             task="general_question_answering",
             base64_image=None
         )
 
-        # Step 4: Convert answer back to speech
+        if not answer:
+            raise HTTPException(status_code=500, detail="LLM did not return a response")
+
+        # 2. Chuyển text → speech (mp3 file)
         audio_path = format_audio_response(answer, "general_question_answering")
 
-        if audio_path:
-            return JSONResponse(content={
-                "reply": answer,
-            }, status_code=200)  # Explicitly return 200 OK
-        else:
+        if not audio_path:
             raise HTTPException(status_code=500, detail="Failed to generate audio response")
 
+        # 3. Trả reply + link audio cho FE
+        return JSONResponse(
+            content={
+                "reply": answer,
+                "audio_url": f"/download_audio?audio_path={audio_path}"
+            },
+            status_code=200
+        )
+
     except Exception as e:
-        print(e)
+        print("Error:", e)
         raise HTTPException(status_code=500, detail="Internal server error")
+
 
 
 @app.websocket("/ws/realtime-description")
@@ -654,9 +661,9 @@ async def description_status():
 #     return FileResponse(pdf_path, media_type="application/pdf", filename="document.pdf")
 
 
-# @app.get("/download_audio")
-# async def download_audio(audio_path: str):
-#     return FileResponse(audio_path, media_type="audio/mpeg", filename="document.mp3")
+@app.get("/download_audio")
+async def download_audio(audio_path: str):
+    return FileResponse(audio_path, media_type="audio/mpeg", filename="document.mp3")
 
 
 if __name__ == "__main__":
