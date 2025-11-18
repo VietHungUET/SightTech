@@ -3,15 +3,15 @@ import { Stack, Paper, Typography, Box } from '@mui/material';
 import { CameraAlt, Article, MonetizationOnRounded, QrCodeScanner } from '@mui/icons-material';
 import {useState} from "react";
 
-export default function ImageDetectionOptions() {
+export default function ImageDetectionOptions({setDetectionType}) {
 
-    const [selected, setSelected] = useState(null);
+    const [selected, setSelected] = useState(0);
 
     const options = [
-        { label: 'Object detection', icon: <CameraAlt /> },
-        { label: 'Text detection', icon: <Article /> },
-        { label: 'Currency detection', icon: <MonetizationOnRounded /> },
-        { label: 'Bar code scanner', icon: <QrCodeScanner /> }
+        {type: 'Object', label: 'Object detection', icon: <CameraAlt /> },
+        {type: 'Text', label: 'Text detection', icon: <Article /> },
+        {type: 'Currency', label: 'Currency detection', icon: <MonetizationOnRounded /> },
+        {type: 'Barcode', label: 'Bar code scanner', icon: <QrCodeScanner /> }
     ];
 
     return (
@@ -20,7 +20,10 @@ export default function ImageDetectionOptions() {
                 <Paper key={index}
                        elevation={2}
                        className={`option-card ${selected === index ? 'selected' : ''}`}
-                       onClick={() => setSelected(index)}>
+                       onClick={() => {
+                           setSelected(index);
+                           setDetectionType(option.type);
+                       }}>
                     <Box className="option-icon">{option.icon}</Box>
                     <Typography variant="body1">{option.label}</Typography>
                 </Paper>
