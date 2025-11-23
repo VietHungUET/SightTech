@@ -12,6 +12,11 @@ const userAPI = {
         const url = "/document_recognition";
         return axiosClient.post(url, imageData);
     },
+
+    postCurrencyDetection: (imageData) => {
+        const url = "/currency_detection";
+        return axiosClient.post(url, imageData);
+    },
 }
 
 export default userAPI;
