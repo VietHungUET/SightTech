@@ -1,7 +1,9 @@
+import base64
+import logging
 import os
 from typing import Optional
+
 from dotenv import load_dotenv
-import base64
 
 # LangChain Models
 from langchain_community.chat_models import ChatOpenAI
@@ -110,15 +112,31 @@ from typing import Optional
 
 
 import cv2
-from pyzbar.pyzbar import decode
 import numpy as np
 
+try:
+    from pyzbar.pyzbar import decode as _decode_barcode
+    _pyzbar_import_error: Optional[Exception] = None
+except (ImportError, OSError, FileNotFoundError) as exc:  # OSError captures missing DLL on Windows
+    _decode_barcode = None
+    _pyzbar_import_error = exc
+
+
+logger = logging.getLogger(__name__)
+
 def extract_barcode_from_base64(base64_image: str):
+    if _decode_barcode is None:
+        raise RuntimeError(
+            "Barcode decoding requires pyzbar with libzbar installed. "
+            "Install libzbar (e.g. via your OS package manager or download the DLL) "
+            "and ensure it is on the system PATH."
+        ) from _pyzbar_import_error
+
     image_bytes = base64.b64decode(base64_image)
     image_np = np.frombuffer(image_bytes, dtype=np.uint8)
     image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
     
-    decoded_objects = decode(image)
+    decoded_objects = _decode_barcode(image)
     barcodes = [obj.data.decode("utf-8") for obj in decoded_objects]
 
     print(barcodes)
@@ -172,8 +190,12 @@ def get_llm_response(query: str, task: str, base64_image: Optional[str] = None, 
     prompt = get_task_prompt(task)
 
     if task == "product_recognition" and base64_image:
-        barcodes = extract_barcode_from_base64(base64_image)[0]
-        print(barcodes)
+        try:
+            barcodes = extract_barcode_from_base64(base64_image)
+        except RuntimeError as err:
+            logger.warning("Barcode detection unavailable: %s", err)
+            barcodes = []
+
         if barcodes:
             book_info = fetch_book_main_info(barcodes[0])
             query = "Reformat the following product infomation: " "\n".join(f"{key}: {value}" for key, value in book_info.items())
