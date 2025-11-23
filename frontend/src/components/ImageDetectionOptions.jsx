@@ -2,6 +2,7 @@ import './ImageDetectionOptions.css';
 import { Stack, Paper, Typography, Box } from '@mui/material';
 import { CameraAlt, Article, MonetizationOnRounded, QrCodeScanner } from '@mui/icons-material';
 import {useState} from "react";
+import {speech} from "../utils/utils.jsx";
 
 export default function ImageDetectionOptions({setDetectionType}) {
 
@@ -23,6 +24,7 @@ export default function ImageDetectionOptions({setDetectionType}) {
                        onClick={() => {
                            setSelected(index);
                            setDetectionType(option.type);
+                           speech("Switched to " + option.label + "option")
                        }}>
                     <Box className="option-icon">{option.icon}</Box>
                     <Typography variant="body1">{option.label}</Typography>
