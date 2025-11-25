@@ -7,6 +7,8 @@ const axiosClient = axios.create({
     },
 });
 
+export const API_BASE_URL = axiosClient.defaults.baseURL;
+
 const userAPI = {
     postDocumentRecognition: (imageData) => {
         const url = "/document_recognition";
@@ -16,6 +18,16 @@ const userAPI = {
     postCurrencyDetection: (imageData) => {
         const url = "/currency_detection";
         return axiosClient.post(url, imageData);
+    },
+
+    postBarcodeScan: (imageData) => {
+        const url = "/barcode/scan";
+        return axiosClient.post(url, imageData);
+    },
+
+    postVoiceCommand: (audioData) => {
+        const url = "/transcribe_audio_v2";
+        return axiosClient.post(url, audioData);
     },
 }
 

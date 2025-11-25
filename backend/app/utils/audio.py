@@ -1,10 +1,18 @@
 
 from collections import OrderedDict
-from sentence_transformers import SentenceTransformer, util
+# from sentence_transformers import SentenceTransformer, util
 from ..config.language_config import LanguageConfig
 from difflib import SequenceMatcher
 
-embedder = SentenceTransformer('all-MiniLM-L6-v2')
+# embedder = SentenceTransformer('all-MiniLM-L6-v2')
+_embedder = None
+
+def get_embedder():
+    global _embedder
+    if _embedder is None:
+        from sentence_transformers import SentenceTransformer
+        _embedder = SentenceTransformer('all-MiniLM-L6-v2')
+    return _embedder
 
 # Initial unordered feature labels (prioritizing more distinct features first)
 raw_feature_labels = OrderedDict({
@@ -283,6 +291,7 @@ def find_action_intent(text):
 
 # --- Helper function for Semantic Query Routing ---
 def route_query_semantically(query_text, embedder, feature_keywords):
+    from sentence_transformers import util
     query_embed = embedder.encode(query_text, convert_to_tensor=True)
     best_match_feature, best_score = None, -1
 

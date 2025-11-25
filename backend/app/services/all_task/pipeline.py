@@ -10,6 +10,8 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 
+from app.services.barcode_scanning import BarcodeProcessingError, BarcodeScannerService
+
 # Load env vars
 load_dotenv()
 
@@ -108,43 +110,31 @@ def get_task_prompt(task: str) -> str:
     }
     return prompts.get(task, "Describe the image.")
 
-from typing import Optional
-
-
-import cv2
-import numpy as np
-
-try:
-    from pyzbar.pyzbar import decode as _decode_barcode
-    _pyzbar_import_error: Optional[Exception] = None
-except (ImportError, OSError, FileNotFoundError) as exc:  # OSError captures missing DLL on Windows
-    _decode_barcode = None
-    _pyzbar_import_error = exc
-
-
 logger = logging.getLogger(__name__)
 
-def extract_barcode_from_base64(base64_image: str):
-    if _decode_barcode is None:
-        raise RuntimeError(
-            "Barcode decoding requires pyzbar with libzbar installed. "
-            "Install libzbar (e.g. via your OS package manager or download the DLL) "
-            "and ensure it is on the system PATH."
-        ) from _pyzbar_import_error
-
-    image_bytes = base64.b64decode(base64_image)
-    image_np = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
-    
-    decoded_objects = _decode_barcode(image)
-    barcodes = [obj.data.decode("utf-8") for obj in decoded_objects]
-
-    print(barcodes)
-    
-    return barcodes  # could be a list of barcodes found
+try:
+    _barcode_scanner = BarcodeScannerService()
+except RuntimeError as exc:  # pragma: no cover - depends on optional dependency
+    logger.warning("Barcode scanner unavailable inside all_task pipeline: %s", exc)
+    _barcode_scanner = None
 
 import requests
-import json
+
+
+def _serialise_for_prompt(data: dict) -> str:
+    lines = []
+    for key, value in data.items():
+        if value in (None, "", []):
+            continue
+        if isinstance(value, dict):
+            nested = "; ".join(f"{nested_key}: {nested_val}" for nested_key, nested_val in value.items())
+            lines.append(f"{key}: {nested}")
+        elif isinstance(value, list):
+            joined = ", ".join(str(item) for item in value)
+            lines.append(f"{key}: {joined}")
+        else:
+            lines.append(f"{key}: {value}")
+    return "\n".join(lines)
 
 def fetch_book_main_info(isbn: str) -> Optional[dict]:
     """
@@ -154,19 +144,16 @@ def fetch_book_main_info(isbn: str) -> Optional[dict]:
     response = requests.get(url)
 
     if response.status_code != 200:
-        print(f"Error: Failed to fetch data (status {response.status_code})")
+        logger.warning("Failed to fetch book data for ISBN %s (status %s)", isbn, response.status_code)
         return None
 
     data = response.json()
-    print(data)
+
     if not data.get("items"):
-        print("No book found with this ISBN.")
-        with open("sample_product.json", "r") as f:
-            data = json.load(f)
+        logger.info("No book found with ISBN %s", isbn)
+        return None
 
-    print(data)
-
-    volume_info = data["items"][0]["volumeInfo"]
+    volume_info = data["items"][0].get("volumeInfo", {})
 
     # Extract clean, minimal fields
     result = {
@@ -190,18 +177,46 @@ def get_llm_response(query: str, task: str, base64_image: Optional[str] = None, 
     prompt = get_task_prompt(task)
 
     if task == "product_recognition" and base64_image:
-        try:
-            barcodes = extract_barcode_from_base64(base64_image)
-        except RuntimeError as err:
-            logger.warning("Barcode detection unavailable: %s", err)
-            barcodes = []
+        if _barcode_scanner is not None:
+            try:
+                scan_result = _barcode_scanner.scan_base64(base64_image, trigger="llm")
+            except BarcodeProcessingError as err:
+                logger.warning("Barcode scanning failed: %s", err)
+                scan_result = {
+                    "status": "error",
+                    "speech_text": str(err),
+                    "barcode": None,
+                    "product": None,
+                }
 
-        if barcodes:
-            book_info = fetch_book_main_info(barcodes[0])
-            query = "Reformat the following product infomation: " "\n".join(f"{key}: {value}" for key, value in book_info.items())
-            print(book_info)
+            barcode_value = scan_result.get("barcode")
+            product = scan_result.get("product")
+
+            if scan_result.get("status") == "success" and product:
+                formatted = _serialise_for_prompt(product)
+                query = (
+                    "Reformat the following product information into a concise spoken summary suitable for "
+                    "visually impaired users:\n"
+                    f"{formatted}"
+                )
+            elif barcode_value:
+                book_info = fetch_book_main_info(barcode_value)
+                if book_info:
+                    formatted = _serialise_for_prompt(book_info)
+                    query = (
+                        "Reformat the following product information into a concise spoken summary suitable for "
+                        "visually impaired users:\n"
+                        f"{formatted}"
+                    )
+                else:
+                    query = scan_result.get(
+                        "speech_text",
+                        "No product information found for the detected barcode.",
+                    )
+            else:
+                query = scan_result.get("speech_text", "No barcode detected.")
         else:
-            query = "No barcode detected."
+            query = "Barcode detection is currently unavailable."
         
 
     if task != "product_recognition" and base64_image:
