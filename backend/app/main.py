@@ -1,3 +1,8 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import base64
 import cv2
 import logging
@@ -33,8 +38,6 @@ import mimetypes
 #from app.services.image_captioning.provider.gpt4.gpt4 import OpenAIProvider
 from fastapi import FastAPI, UploadFile, File
 from sentence_transformers import SentenceTransformer, util
-from dotenv import load_dotenv
-import os
 import tempfile
 import requests
 from collections import OrderedDict
@@ -568,41 +571,37 @@ class NewsQuery(BaseModel):
 class ChatbotQuery(BaseModel):
     message: str
 
-# @app.post("/fetching_news")
-# async def article_reading(news_query: str = Form(...)):
+@app.post("/fetching_news")
+async def article_reading(news_query: str = Form(...)):
+    try:
+        if not news_query:
+            raise HTTPException(status_code=400, detail="No news query provided")
 
-#     try:
-#         if not news_query:
-#             raise HTTPException(status_code=400, detail="No news query provided")       
-
-#         # process audio to extract the news query
-#         if "error" in news_query:
-#             raise HTTPException(status_code=400, detail="Failed to transcribe audio")
+        from app.services.article_reading.pipeline import execute_pipeline
         
-#         articles = execute_pipeline(news_query)
+        articles = execute_pipeline(news_query)
 
-#         if not articles:
-#             raise HTTPException(status_code=400, detail="No valid articles found")
+        if not articles:
+            raise HTTPException(status_code=404, detail="No valid articles found")
         
-#         res = []
+        res = []
+        for article in articles:
+            res.append({
+                "title": article.title,
+                "text": article.text,
+                "summary": article.summary,
+                "url": article.url
+            })
 
-#         for i, article in enumerate(articles):
-#             res.append({
-#                 "title": article.title,
-#                 "text": article.text,
-#                 "summary": article.summary,
-#                 "url": article.url
-#             })
-        
-
-#         return JSONResponse(content={
-#             "articles": res,
-            
-#         },
-#         status_code=200)  # Explicitly return 200 OK)
-#     except Exception as e:
-#         print(e)
-#         return {"error": "Failed to process audio."}
+        return JSONResponse(
+            content={"articles": res},
+            status_code=200
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in article_reading: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch articles")
 
 @app.post("/general_question_answering")
 async def general_qa(message: str = Form(...)):
