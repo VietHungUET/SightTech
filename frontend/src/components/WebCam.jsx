@@ -1,6 +1,6 @@
-import React, {useRef, useCallback, useState, forwardRef} from "react";
-import {Button} from "@mui/material";
-import {Videocam, VideocamOff, Mic, MicOff} from "@mui/icons-material";
+import React, { useRef, useCallback, useState, forwardRef } from "react";
+import { Button } from "@mui/material";
+import { Videocam, VideocamOff, Mic, MicOff } from "@mui/icons-material";
 import Webcam from "react-webcam";
 import "./WebCam.css"
 
@@ -35,18 +35,19 @@ const WebCam = forwardRef((props, ref) => {
                     mirrored={true}
                 />
             }
+            {props.children}
             <div className="webcam-controls">
                 <Button
                     variant="contained"
                     onClick={toggleCamera}
                 >
-                    {camOpen ? <Videocam/> : <VideocamOff/>}
+                    {camOpen ? <Videocam /> : <VideocamOff />}
                 </Button>
                 <Button
                     variant="contained"
                     onClick={toggleMic}
                 >
-                    {micOpen ? <Mic/> : <MicOff/>}
+                    {micOpen ? <Mic /> : <MicOff />}
                 </Button>
             </div>
         </div>
