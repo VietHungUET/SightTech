@@ -10,6 +10,15 @@ class ArticleData:
         self.text = text
         self.summary = summary
         self.url = url
+    
+    def to_dict(self):
+        """Convert ArticleData to dictionary for JSON serialization"""
+        return {
+            "title": self.title,
+            "text": self.text,
+            "summary": self.summary,
+            "url": self.url
+        }
 
 
 def is_article_url(url: str) -> bool:

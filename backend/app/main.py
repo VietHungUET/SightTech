@@ -114,31 +114,45 @@ async def document_recognition(file: UploadFile = File(...)):
         print(f"Lỗi xảy ra: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.post("/fetching_news")
+async def fetching_news(news_query: str = Form(...)):
+    try:
+        if not news_query:
+            raise HTTPException(status_code=400, detail="News query is required")
+        
+        # Import here to avoid circular imports if any
+        from app.services.article_reading.pipeline import execute_pipeline
+        articles = execute_pipeline(news_query)
+        
+        if not articles:
+            raise HTTPException(status_code=404, detail="No articles found")
+            
+        return {"articles": [article.to_dict() for article in articles]}
+    except Exception as e:
+        print(f"Error in fetching_news: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Currency Detection Endpoint
+from app.services.currency_detection.pipeline import detect_currency
 
 @app.post("/currency_detection")
 async def currency_detection(file: UploadFile = File(...)):
     try:
-        start = time.time()
-        image_data = await file.read()
-        base64_image = base64.b64encode(image_data).decode("utf-8")
-
-        result = get_llm_response(
-            query="Extract text from this image.",
-            task="currency_detection",
-            base64_image=base64_image,
-        )
-
-        if not result:
-            raise HTTPException(status_code=500, detail="Failed to generate text response")
-
-        return JSONResponse(content={
-            "status": "success",
-            "text": result,
-        })
-
+        contents = await file.read()
+        result = detect_currency(contents)
+        
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+            
+        # Return JSON with total money and detections
+        return {
+            "total_money": result["total_money"],
+            "detections": result["detections"],
+            "message": f"Detected {result['total_money']:,} VND"
+        }
     except Exception as e:
-        print(f"Lỗi xảy ra: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        print(f"Error in currency detection: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     
 
 @app.post("/image_captioning")
@@ -572,36 +586,46 @@ class ChatbotQuery(BaseModel):
     message: str
 
 @app.post("/fetching_news")
-async def article_reading(news_query: str = Form(...)):
+async def fetching_news(news_query: str = Form(...)):
     try:
         if not news_query:
-            raise HTTPException(status_code=400, detail="No news query provided")
-
+            raise HTTPException(status_code=400, detail="News query is required")
+        
+        # Import here to avoid circular imports if any
         from app.services.article_reading.pipeline import execute_pipeline
-        
         articles = execute_pipeline(news_query)
-
-        if not articles:
-            raise HTTPException(status_code=404, detail="No valid articles found")
         
-        res = []
-        for article in articles:
-            res.append({
-                "title": article.title,
-                "text": article.text,
-                "summary": article.summary,
-                "url": article.url
-            })
-
-        return JSONResponse(
-            content={"articles": res},
-            status_code=200
-        )
-    except HTTPException:
-        raise
+        if not articles:
+            raise HTTPException(status_code=404, detail="No articles found")
+            
+        return {"articles": [article.to_dict() for article in articles]}
     except Exception as e:
-        print(f"Error in article_reading: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch articles")
+        print(f"Error in fetching_news: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Currency Detection Endpoint
+from app.services.currency_detection.pipeline import detect_currency
+
+@app.post("/currency_detection")
+async def currency_detection(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        result = detect_currency(contents)
+        
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+            
+        # Return JSON with total money and detections
+        return {
+            "total_money": result["total_money"],
+            "detections": result["detections"],
+            "message": f"Detected {result['total_money']:,} VND"
+        }
+    except Exception as e:
+        print(f"Error in currency detection endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/general_question_answering")
 async def general_qa(message: str = Form(...)):
