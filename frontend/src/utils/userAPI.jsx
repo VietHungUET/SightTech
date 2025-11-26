@@ -1,10 +1,10 @@
 import axios from "axios";
 
 const axiosClient = axios.create({
-    baseURL: "http://localhost:8000",
-    headers: {
-        "Content-Type": "multipart/form-data",
-    },
+  baseURL: "http://localhost:8000",
+  headers: {
+    "Content-Type": "multipart/form-data",
+  },
 });
 
 export const API_BASE_URL = axiosClient.defaults.baseURL;

@@ -20,3 +20,9 @@ pyzbar==0.1.9
 opencv-python==4.10.0.84
 
 requests==2.31.0
+
+greenlet>=1.0
+#SQLAlchemy==1.4.53
+newspaper3k
+lxml_html_clean
+opencv-python
