@@ -29,6 +29,11 @@ const userAPI = {
         const url = "/transcribe_audio_v2";
         return axiosClient.post(url, audioData);
     },
+
+    postMusicDetection: (audioData) => {
+        const url = "/music_detection";
+        return axiosClient.post(url, audioData);
+    },
 }
 
 export default userAPI;
