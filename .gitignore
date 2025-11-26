@@ -29,3 +29,5 @@ Thumbs.db
 # Project specific
 backend/models/
 *.log
+
+backend/debug_captures/

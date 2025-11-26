@@ -14,7 +14,7 @@ class Config(object):
         self.DB_NAME = os.getenv('DB_NAME')
         self.DB_COLLECTION = os.getenv('DB_COLLECTION')
         self.DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY')
-        self.OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+        self.OPENAI_API_KEY = os.getenv('OPENAI_API_KEY','abcxyz')
         self.GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
         self.AUDD_API_KEY = os.getenv('AUDD_API_KEY')
         # self.VOICE_RSS = os.getenv('Voice_RSS')

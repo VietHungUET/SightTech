@@ -17,7 +17,7 @@ from sympy import content
 
 # from app.article_reading.pipeline import execute_pipeline
 from app.services.question_answering.pipeline import ask_general_question
-from app.utils.audio import FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH, FEATURE_LABELS, FEATURE_NAMES, find_navigation_intent, find_action_intent, route_query_semantically, embedder
+from app.utils.audio import FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH, FEATURE_LABELS, FEATURE_NAMES, find_navigation_intent, find_action_intent, route_query_semantically, get_embedder
 from app.utils.deepgram import transcribe_audio
 from .utils.formatter import create_pdf, create_pdf_async, format_article_audio_response, format_response_distance_estimate_with_openai, format_response_product_recognition_with_openai, format_audio_response
 # from .currency_detection.yolov8.YOLOv8 import YOLOv8
@@ -27,7 +27,7 @@ import sys
 from fastapi.responses import FileResponse
 from tempfile import NamedTemporaryFile
 # from .product_recognition.pipeline import BarcodeProcessor
-from deepface import DeepFace
+# from deepface import DeepFace
 import time
 #from app.services.image_captioning.provider.gemini.gemini import gen_img_description
 import asyncio
@@ -42,11 +42,18 @@ import tempfile
 import requests
 from collections import OrderedDict
 from .services.all_task.pipeline import get_llm_response
+from .services.barcode_scanning import BarcodeProcessingError, BarcodeScannerService
 from .services.music_detection.pipeline import execute_music_detection
 from .utils.formatter import format_audio_response
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+try:
+    barcode_scanner = BarcodeScannerService()
+except RuntimeError as exc:
+    logger.warning("Barcode scanner unavailable: %s", exc)
+    barcode_scanner = None
 
 start = time.time()
 # ocr = OcrRecognition()
@@ -218,6 +225,36 @@ async def product_recognition(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Lỗi xảy ra: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/barcode/scan")
+async def barcode_scan(
+    trigger: str = Form("snapshot"),
+    file: UploadFile = File(...),
+):
+    if barcode_scanner is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Barcode scanning service is not available on this server.",
+        )
+
+    image_bytes = await file.read()
+
+    try:
+        result = barcode_scanner.scan_bytes(image_bytes, trigger=trigger)
+    except BarcodeProcessingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    speech_text = result.get("speech_text")
+    audio_url = None
+
+    if speech_text:
+        audio_path = format_audio_response(speech_text, "general_question_answering")
+        if audio_path:
+            audio_url = f"/download_audio?audio_path={audio_path}"
+
+    payload = {**result, "audio_url": audio_url}
+    return JSONResponse(content=payload)
 
 
 
@@ -528,7 +565,7 @@ async def process_voice_command(file: UploadFile = File(...), current_feature: s
             if not target:
                 semantic_result = route_query_semantically(
                     transcript_text,
-                    embedder,
+                    get_embedder(),
                     FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH
                 )
                 target = semantic_result["target_feature"]
@@ -555,7 +592,7 @@ async def process_voice_command(file: UploadFile = File(...), current_feature: s
         # Use semantic similarity to find the best feature *for the query*
         semantic_routing_result = route_query_semantically(
             transcript_text,
-            embedder,
+            get_embedder(),
             FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH # Use the detailed keywords here
         )
 
