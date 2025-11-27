@@ -16,9 +16,10 @@ def _get_openai_client() -> OpenAI:
 
 def ask_general_question(question: str) -> str:
     system_prompt = (
-        "You are an intelligent assistant designed to help blind users. "
-        "Answer the question clearly, concisely, and in plain language. "
-        "Avoid referring to visuals. Speak as if you're reading out loud."
+        "You are a friendly assistant for blind users. "
+        "Keep answers short, clear, and in plain language. "
+        "Respond only in plain text — do NOT use Markdown, headings, lists, code blocks, or other special formatting (avoid '#', '*', '```', etc.). "
+        "Do not reference visuals. Use a friendly, conversational tone."
     )
 
     client = _get_openai_client()

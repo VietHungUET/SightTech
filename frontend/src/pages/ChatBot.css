@@ -1,0 +1,130 @@
+.chatbotContainer {
+    padding: 2rem 1rem;
+}
+
+/* Header section */
+.chatbotHeader {
+    margin-bottom: 1.5rem;
+}
+
+.chatbotHeaderRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+
+.chatbotTitle {
+    font-size: 2rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.chatbotDescription {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+/* Status chips */
+.statusChip {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    padding: 1.25rem 0.5rem !important;
+}
+
+.statusChip .MuiChip-label {
+    padding: 0 0.75rem;
+}
+
+.statusChip .MuiChip-icon {
+    font-size: 1.3rem;
+}
+
+.statusChipPulse {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.02);
+    }
+}
+
+/* Chat box card */
+.chatCard {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    height: 600px;
+}
+
+/* Messages container */
+.messagesContainer {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background-color: #f9fafb;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+    scroll-behavior: smooth;
+}
+
+.messagesContainer > * + * {
+    margin-top: 0.75rem;
+}
+
+/* Scrollbar styling */
+.messagesContainer::-webkit-scrollbar {
+    width: 6px;
+}
+
+.messagesContainer::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.messagesContainer::-webkit-scrollbar-thumb {
+    background: #1976d2;
+    border-radius: 10px;
+}
+
+.messagesContainer::-webkit-scrollbar-thumb:hover {
+    background: #1565c0;
+}
+
+/* Empty state */
+.emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+}
+
+.emptyStateIcon {
+    font-size: 80px !important;
+    color: #1976d2;
+    opacity: 0.7;
+    margin-bottom: 1rem;
+}
+
+.emptyStateTitle {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1976d2;
+    margin: 0 0 0.5rem 0;
+}
+
+.emptyStateHint {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin: 0;
+}
