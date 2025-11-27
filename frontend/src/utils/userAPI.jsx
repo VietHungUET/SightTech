@@ -30,6 +30,11 @@ const userAPI = {
         return axiosClient.post(url, audioData);
     },
 
+    transcribeOnboarding: (audioData) => {
+        const url = "/transcribe_audio_simple";
+        return axiosClient.post(url, audioData);
+    },
+
     postMusicDetection: (audioData) => {
         const url = "/music_detection";
         return axiosClient.post(url, audioData);
