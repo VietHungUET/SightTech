@@ -196,7 +196,7 @@ export default function Home() {
         <div className="hero-content">
           <p className="hero-eyebrow">Welcome to SightTech</p>
           <h1>
-            Accessible AI assistance <span>for every moment</span>
+            <span>Illuminating Your World with AI</span>
           </h1>
           <p className="hero-description">
             SightTech is an AI-powered application designed to assist visually
