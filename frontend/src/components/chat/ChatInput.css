@@ -1,0 +1,104 @@
+.inputContainer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Mic button */
+.micButton {
+    min-width: 56px !important;
+    min-height: 56px !important;
+    background-color: #1976d2 !important;
+    color: white !important;
+    border-radius: 8px !important;
+}
+
+.micButton:hover {
+    background-color: #1565c0 !important;
+}
+
+.micButton:disabled {
+    background-color: #9e9e9e !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Send button */
+.sendButton {
+    min-width: 56px !important;
+    min-height: 56px !important;
+    background-color: #1976d2 !important;
+    color: white !important;
+    border-radius: 8px !important;
+}
+
+.sendButton:hover {
+    background-color: #1565c0 !important;
+}
+
+.sendButton:disabled {
+    background-color: #9e9e9e !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Text input */
+.chatTextField .MuiOutlinedInput-root {
+    border-radius: 8px;
+}
+
+/* Recording mode - full width waveform area */
+.recordingContainer {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #d32f2f;
+    border-radius: 12px;
+    padding: 1rem;
+    min-height: 72px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+}
+
+.recordingContainer:hover {
+    background-color: #c62828;
+}
+
+/* Waveform visualization */
+.waveformContainer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    height: 56px;
+}
+
+.waveformBar {
+    width: 6px;
+    background-color: white;
+    border-radius: 3px;
+    transition: height 0.05s ease-out;
+}
+
+/* Tap to stop hint */
+.tapToStopHint {
+    position: absolute;
+    bottom: 4px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .inputContainer {
+        gap: 0.375rem;
+    }
+    
+    .micButton,
+    .sendButton {
+        min-width: 48px !important;
+        min-height: 48px !important;
+    }
+}

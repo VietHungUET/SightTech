@@ -39,6 +39,17 @@ const userAPI = {
         const url = "/music_detection";
         return axiosClient.post(url, audioData);
     },
+    postChatbot: (data) => {
+        const url = "/chatbot";
+        return axiosClient.post(url, data);
+    },
+
+    postGeneralQuestionAnswering: (message) => {
+        const url = "/general_question_answering";
+        const formData = new FormData();
+        formData.append('message', message);
+        return axiosClient.post(url, formData);
+    },
 }
 
 export default userAPI;
