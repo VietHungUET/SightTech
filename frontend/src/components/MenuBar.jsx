@@ -12,7 +12,6 @@ export default function MenuBar() {
             <NavLink to="/image">Image Detection</NavLink>
             <NavLink to="/music">Music Detection</NavLink>
             <NavLink to="/chatbot">Chatbot</NavLink>
-            <NavLink to="/voice">Voice Assistant</NavLink>
             <NavLink to="/news">News</NavLink>
         </nav>
     )
