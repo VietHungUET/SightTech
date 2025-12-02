@@ -15,10 +15,15 @@ import NotFound from "./pages/NotFound.jsx";
 
 function Layout() {
   return (
-    <>
+    <div className="app-layout">
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+      <main id="main-content" className="main-content-area">
+        <Outlet />
+      </main>
       <MenuBar />
-      <Outlet />
-    </>
+    </div>
   );
 }
 
@@ -27,6 +32,7 @@ const router = createBrowserRouter(
     <Route element={<Layout />}>
       <Route path="/" element={<Home />} />
       <Route path="image" element={<ImageDetection />} />
+      <Route path="image/:mode" element={<ImageDetection />} />
       <Route path="music" element={<MusicDetection />} />
       <Route path="chatbot" element={<ChatBot />} />
       <Route path="news" element={<News />} />

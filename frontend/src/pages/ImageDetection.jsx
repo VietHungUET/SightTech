@@ -1,26 +1,65 @@
 import WebCam from "../components/WebCam.jsx";
-import ImageDetectionOptions from "../components/ImageDetectionOptions.jsx";
-import ProductInfoCard from "../components/ProductInfoCard.jsx";
 import "./ImageDetection.css";
-import { Button } from "@mui/material";
-import { KeyboardVoice, PhotoCamera, StopCircle } from "@mui/icons-material";
+import { IconButton, Tooltip } from "@mui/material";
+import {
+  KeyboardVoice,
+  PhotoCamera,
+  StopCircle,
+  CameraAlt,
+  Article,
+  MonetizationOn,
+  QrCodeScanner
+} from "@mui/icons-material";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import userAPI, { API_BASE_URL } from "../utils/userAPI.jsx";
 import { dataURLtoBlob, speech } from "../utils/utils.jsx";
 
+// Map URL mode to detection type
+const modeToType = {
+  object: "Object",
+  text: "Text",
+  currency: "Currency",
+  barcode: "Barcode"
+};
+
+const typeToMode = {
+  Object: "object",
+  Text: "text",
+  Currency: "currency",
+  Barcode: "barcode"
+};
+
 export default function ImageDetection() {
+  const { mode } = useParams();
+  const navigate = useNavigate();
+
   const webcamRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const canvasRef = useRef(null);
   const lastScannedTime = useRef(0);
   const isProcessingRef = useRef(false);
+  const isVoiceActiveRef = useRef(false);
 
-  const [detectionType, setDetectionType] = useState("Object");
+  // Initialize detection type from URL parameter
+  const initialType = mode && modeToType[mode.toLowerCase()] ? modeToType[mode.toLowerCase()] : "Object";
+  const [detectionType, setDetectionType] = useState(initialType);
   const [reply, setReply] = useState("");
-  const [productInfo, setProductInfo] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Sync detection type with URL parameter
+  useEffect(() => {
+    if (mode && modeToType[mode.toLowerCase()]) {
+      const newType = modeToType[mode.toLowerCase()];
+      if (newType !== detectionType) {
+        setDetectionType(newType);
+        setReply("");
+        speech(`Switched to ${newType} detection`);
+      }
+    }
+  }, [mode]);
 
   const capture = useCallback(async (triggerSource = "manual") => {
     if (isProcessing) {
@@ -40,9 +79,9 @@ export default function ImageDetection() {
     setReply("");
     if (triggerSource !== "auto") {
       if (detectionType === "Barcode") {
-        speech("Screenshot captured, processing the barcode.");
+        speech("Screenshot captured. Processing barcode.");
       } else {
-        speech("Screenshot captured, processing.");
+        speech("Screenshot captured. Processing now.");
       }
     }
 
@@ -57,13 +96,12 @@ export default function ImageDetection() {
           const textResult = await userAPI.postDocumentRecognition(formData);
           const text = textResult?.data?.text;
           if (!text) {
-            speech("Failed to recognize text from the image.");
-            setReply("Unable to detect text.");
+            speech("No text detected.");
+            setReply("No text detected.");
             break;
           }
-          speech(`The detected text is ${text}`);
+          speech(`Detected text: ${text}`);
           setReply(text);
-          setProductInfo(null);
           break;
         }
         case "Currency": {
@@ -75,7 +113,7 @@ export default function ImageDetection() {
             let detailedMessage = "";
 
             if (totalMoney === 0 || detectionsList.length === 0) {
-              detailedMessage = "Không phát hiện tiền. Hãy thử với ánh sáng tốt hơn hoặc đặt tờ tiền rõ ràng hơn.";
+              detailedMessage = "No currency detected. Try better lighting or adjust the banknote.";
             } else {
               const counts = {};
               detectionsList.forEach((d) => {
@@ -90,24 +128,22 @@ export default function ImageDetection() {
                   const count = counts[denom];
                   const formattedDenom = parseInt(denom).toLocaleString();
                   if (count === 1) {
-                    denomParts.push(`một tờ ${formattedDenom} đồng`);
+                    denomParts.push(`one ${formattedDenom} VND banknote`);
                   } else {
-                    denomParts.push(`${count} tờ ${formattedDenom} đồng`);
+                    denomParts.push(`${count} ${formattedDenom} VND banknotes`);
                   }
                 });
 
-              detailedMessage = `Phát hiện: ${denomParts.join(", ")}. Tổng giá trị: ${totalMoney.toLocaleString()} đồng Việt Nam.`;
+              detailedMessage = `Detected: ${denomParts.join(", ")}. Total: ${totalMoney.toLocaleString()} VND.`;
             }
 
             speech(detailedMessage);
             setReply(detailedMessage);
-            setProductInfo(null);
           } catch (error) {
             console.error("Currency detection error:", error);
-            const errorMsg = error.response?.data?.detail || "Không thể nhận diện tiền. Vui lòng kiểm tra kết nối internet.";
+            const errorMsg = error.response?.data?.detail || "Currency detection failed. Please check your internet connection.";
             speech(errorMsg);
             setReply(errorMsg);
-            setProductInfo(null);
           }
           break;
         }
@@ -117,7 +153,6 @@ export default function ImageDetection() {
           const data = barcodeResult?.data ?? {};
           const speechText = data.speech_text || data.message || "Barcode scan completed.";
           setReply(data.message || speechText);
-          setProductInfo(data.product || null);
 
           if (data.audio_url) {
             const audio = new Audio(`${API_BASE_URL}${data.audio_url}`);
@@ -132,7 +167,6 @@ export default function ImageDetection() {
         default: {
           speech("Object detection is not implemented yet.");
           setReply("Object detection is not implemented yet.");
-          setProductInfo(null);
           break;
         }
       }
@@ -140,23 +174,17 @@ export default function ImageDetection() {
       console.error("Capture error", error);
       speech("An error occurred while processing the image.");
       setReply("An error occurred. Please try again.");
-      setProductInfo(null);
     } finally {
       setIsProcessing(false);
     }
   }, [detectionType, isProcessing]);
 
   useEffect(() => {
-    const introduction = (
-      "This is the Image Detection mode. You are currently in object detection and can switch to text, " +
-      "currency, or barcode detection options."
-    );
-    speech(introduction);
+    speech("Image detection ready. Use the list to switch modes or give a voice command.");
   }, []);
 
   useEffect(() => {
     setReply("");
-    setProductInfo(null);
   }, [detectionType]);
 
   useEffect(() => {
@@ -268,6 +296,10 @@ export default function ImageDetection() {
   }, [detectionType, processVoiceCommand]);
 
   const stopRecording = useCallback(() => {
+    isVoiceActiveRef.current = false;
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== "inactive") {
       recorder.stop();
@@ -277,6 +309,12 @@ export default function ImageDetection() {
 
   const startRecording = useCallback(async () => {
     try {
+      isVoiceActiveRef.current = true;
+      setIsRecording(true);
+      await speech("Listening for command. Say 'Take snapshot' to capture the current frame.");
+
+      if (!isVoiceActiveRef.current) return;
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
       audioChunksRef.current = [];
@@ -299,11 +337,11 @@ export default function ImageDetection() {
 
       recorder.start();
       mediaRecorderRef.current = recorder;
-      setIsRecording(true);
-      speech("Listening for the command. Say take snapshot to capture the current frame.");
     } catch (error) {
       console.error("Microphone access error", error);
       speech("Unable to access the microphone. Please check permissions.");
+      setIsRecording(false);
+      isVoiceActiveRef.current = false;
     }
   }, [sendAudioCommand]);
 
@@ -315,45 +353,94 @@ export default function ImageDetection() {
     }
   }, [isRecording, startRecording, stopRecording]);
 
+  const replyMessage = reply || (isProcessing ? "Processing..." : "Ready when you are.");
+
   return (
-    <div className="image-detection-container">
-      <aside className="options-panel">
-        <ImageDetectionOptions setDetectionType={setDetectionType} />
-      </aside>
+    <main
+      className="image-detection-container"
+      aria-label="Image detection workspace"
+    >
+      {/* Main Content Area */}
+      <div className="main-content">
+        {/* Camera Section */}
+        <section
+          className="camera-section"
+          aria-label="Camera preview and controls"
+        >
+          {/* Mode indicator */}
+          <div className="current-mode-indicator">
+            <span className="mode-icon-display">
+              {detectionType === "Object" && <CameraAlt />}
+              {detectionType === "Text" && <Article />}
+              {detectionType === "Currency" && <MonetizationOn />}
+              {detectionType === "Barcode" && <QrCodeScanner />}
+            </span>
+            <span className="mode-text">{detectionType} Detection</span>
+          </div>
 
-      <section className="preview-panel">
-        <div className="controls-panel">
-          <Button
-            variant="contained"
-            onClick={() => capture("manual")}
-            startIcon={<PhotoCamera />}
-            disabled={isProcessing}
-          >
-            {isProcessing ? "Processing..." : "Take Screenshot"}
-          </Button>
-          <Button
-            variant={isRecording ? "contained" : "outlined"}
-            color={isRecording ? "error" : "primary"}
-            onClick={handleVoiceToggle}
-            startIcon={isRecording ? <StopCircle /> : <KeyboardVoice />}
-          >
-            {isRecording ? "Stop Listening" : "Voice Command"}
-          </Button>
-          {isRecording && <span className="voice-status">Listening...</span>}
-        </div>
-        <div className="camera-wrapper">
-          <WebCam ref={webcamRef}>
-            <canvas ref={canvasRef} className="overlay-canvas" />
-          </WebCam>
-        </div>
-      </section>
+          <div className="camera-wrapper" role="presentation">
+            <WebCam ref={webcamRef}>
+              <canvas ref={canvasRef} className="overlay-canvas" />
+            </WebCam>
+          </div>
 
-      <section className="feedback-panel">
-        <div className="reply-box" aria-live="polite">
-          {reply || (isProcessing ? "Processing..." : "Ready when you are.")}
-        </div>
-        {productInfo && <ProductInfoCard product={productInfo} />}
-      </section>
-    </div>
+          {/* Action Buttons Below Camera */}
+          <div
+            className="controls-panel"
+            role="group"
+            aria-label="Image capture controls"
+          >
+            <Tooltip title={isProcessing ? "Processing..." : "Take Snapshot"} arrow>
+              <span>
+                <IconButton
+                  className={`action-icon-btn capture-btn ${isProcessing ? 'processing' : ''}`}
+                  onClick={() => capture("manual")}
+                  disabled={isProcessing}
+                  aria-label={isProcessing ? "Processing image, please wait" : "Take snapshot"}
+                  aria-busy={isProcessing}
+                  size="large"
+                >
+                  <PhotoCamera />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <span className="btn-label">Snapshot</span>
+
+            <Tooltip title={isRecording ? "Stop Listening" : "Voice Command"} arrow>
+              <IconButton
+                className={`action-icon-btn voice-btn ${isRecording ? 'active' : ''}`}
+                onClick={handleVoiceToggle}
+                aria-label={isRecording ? "Stop listening" : "Start voice command"}
+                aria-pressed={isRecording}
+                size="large"
+              >
+                {isRecording ? <StopCircle /> : <KeyboardVoice />}
+              </IconButton>
+            </Tooltip>
+            <span className="btn-label">Voice</span>
+          </div>
+        </section>
+
+        {/* Output Section */}
+        <aside
+          className="output-section"
+          aria-label="Detection results"
+        >
+          <div className="output-header">
+            <span className="output-title">Results</span>
+            <span className="mode-badge">{detectionType}</span>
+          </div>
+          <output
+            id="detection-response"
+            className="output-content"
+            role="status"
+            aria-live="assertive"
+            aria-atomic="true"
+          >
+            {replyMessage}
+          </output>
+        </aside>
+      </div>
+    </main>
   );
 }

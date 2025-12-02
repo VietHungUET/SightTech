@@ -1,8 +1,14 @@
+/* ===========================================
+   Home.css - Accessible Design
+   Primary: Green (#098D71), White background
+   Minimalist, clean, modern approach
+=========================================== */
+
 .home-page {
-  min-height: calc(100vh - 60px);
-  background: linear-gradient(180deg, #f2faf7 0%, #ffffff 55%, #f8fffb 100%);
-  padding: 32px clamp(20px, 4vw, 56px);
-  color: #022f24;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #e8f5f1 0%, #ffffff 50%, #f5fdfb 100%);
+  padding: 2rem clamp(1rem, 4vw, 3rem);
+  color: #1a1a1a;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -15,12 +21,12 @@
 }
 
 .hero-content {
-  width: min(820px, 100%);
+  width: min(720px, 100%);
   background: #ffffff;
   border-radius: 24px;
-  padding: clamp(20px, 4vw, 40px);
-  box-shadow: 0 20px 45px rgba(2, 143, 112, 0.15);
-  border-top: 6px solid #098d71;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  box-shadow: 0 20px 50px rgba(9, 141, 113, 0.12);
+  border: 3px solid #098D71;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -30,77 +36,96 @@
 .hero-eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.2em;
-  color: #0c6f58;
+  color: #098D71;
   font-size: 0.85rem;
-  margin-bottom: 12px;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
 }
 
 .hero-content h1 {
-  font-size: clamp(1.8rem, 3.3vw, 2.7rem);
-  margin: 0 0 12px;
-  color: #043a2c;
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+  margin: 0 0 0.75rem;
+  color: #1a1a1a;
+  font-weight: 700;
 }
 
 .hero-content h1 span {
-  color: #098d71;
+  color: #098D71;
 }
 
 .hero-description {
-  font-size: 1rem;
-  color: #063b2f;
-  line-height: 1.6;
-  margin-bottom: 24px;
+  font-size: 1.1rem;
+  color: #4a4a4a;
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+  max-width: 580px;
 }
 
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 1rem;
+  margin-bottom: 1rem;
   justify-content: center;
 }
 
 .choice-button {
   border: none;
-  padding: 14px 22px;
-  border-radius: 999px;
-  font-size: 1rem;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.2s ease;
+  min-width: 160px;
+  min-height: 56px;
+}
+
+.choice-button:focus-visible {
+  outline: 3px solid #098D71;
+  outline-offset: 3px;
 }
 
 .choice-button.primary {
-  background: #098d71;
+  background: #098D71;
   color: #ffffff;
-  box-shadow: 0 12px 18px rgba(9, 141, 113, 0.25);
+  box-shadow: 0 8px 20px rgba(9, 141, 113, 0.3);
+}
+
+.choice-button.primary:hover {
+  background: #067a62;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(9, 141, 113, 0.35);
 }
 
 .choice-button.secondary {
-  background: #e6f7f1;
-  color: #05634f;
+  background: #ffffff;
+  color: #098D71;
+  border: 3px solid #098D71;
 }
 
-.choice-button:hover,
-.voice-button:hover {
+.choice-button.secondary:hover {
+  background: #e8f5f1;
   transform: translateY(-2px);
 }
 
 .hero-note {
-  color: #055140;
-  margin: 4px 0 16px;
-  font-size: 0.92rem;
+  color: #6b7280;
+  margin: 0.5rem 0 1rem;
+  font-size: 0.95rem;
 }
 
 .status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
   border-radius: 999px;
-  background: #ecfdf6;
-  color: #055140;
+  background: #e8f5f1;
+  color: #098D71;
   font-weight: 600;
-  margin-top: 4px;
+  margin-top: 0.5rem;
+  border: 2px solid #098D71;
 }
 
 .status-indicator {
@@ -111,26 +136,26 @@
 }
 
 .status-indicator.positive {
-  background: #21c292;
+  background: #098D71;
 }
 
 .status-indicator.neutral {
-  background: #f9c74f;
+  background: #f59e0b;
 }
 
 .listening-indicator {
-  margin-top: 20px;
+  margin-top: 1.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  color: #055140;
+  gap: 0.75rem;
+  color: #098D71;
 }
 
 .listening-icon {
   position: relative;
-  width: 110px;
-  height: 110px;
+  width: 100px;
+  height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -140,30 +165,28 @@
   position: absolute;
   border: 2px solid rgba(9, 141, 113, 0.3);
   border-radius: 50%;
-  inset: 10px;
+  inset: 8px;
   transition: transform 0.4s ease, opacity 0.4s ease;
 }
 
 .ring-middle {
-  inset: 24px;
+  inset: 20px;
+  opacity: 0.6;
+.ring-inner {
+  inset: 32px;
   opacity: 0.8;
 }
 
-.ring-inner {
-  inset: 38px;
-  opacity: 0.9;
-}
-
 .listening-core {
-  width: 70px;
-  height: 70px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
-  background: linear-gradient(180deg, #0ba780, #05634f);
+  background: linear-gradient(180deg, #098D71, #067a62);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
-  box-shadow: 0 0 18px rgba(11, 167, 128, 0.35);
+  box-shadow: 0 0 20px rgba(9, 141, 113, 0.4);
 }
 
 .listening-indicator.active .ring-outer {
@@ -180,8 +203,10 @@
 
 .listening-text {
   font-weight: 600;
-  color: #055140;
+  color: #098D71;
   font-size: 0.95rem;
+  text-align: center;
+  max-width: 300px;
 }
 
 @keyframes pulse {
@@ -204,8 +229,7 @@
     flex-direction: column;
   }
 
-  .choice-button,
-  .voice-button {
+  .choice-button {
     width: 100%;
     text-align: center;
   }
@@ -213,11 +237,45 @@
 
 @media (max-width: 600px) {
   .home-page {
-    padding-top: 32px;
+    padding: 1rem;
   }
 
   .hero-content {
-    padding: 24px 18px;
+    padding: 1.5rem 1rem;
+    border-width: 2px;
+  }
+
+  .choice-button {
+    padding: 0.875rem 1.5rem;
+    min-height: 48px;
   }
 }
 
+/* High Contrast Support */
+@media (prefers-contrast: high) {
+  .hero-content {
+    border-width: 4px;
+  }
+
+  .status-pill {
+    border-width: 3px;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .choice-button,
+  .listening-ring {
+    transition: none;
+  }
+
+  .choice-button:hover {
+    transform: none;
+  }
+
+  .listening-indicator.active .ring-outer,
+  .listening-indicator.active .ring-middle,
+  .listening-indicator.active .ring-inner {
+    animation: none;
+  }
+}

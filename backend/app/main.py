@@ -526,6 +526,7 @@ async def process_voice_command(file: UploadFile = File(...), current_feature: s
 
     try:
         transcript_result = transcribe_audio(tmp_path)
+        logger.info(f"Transcription result: {transcript_result}")
 
         if not transcript_result or "transcript" not in transcript_result:
              raise HTTPException(status_code=500, detail="Transcription failed.")
