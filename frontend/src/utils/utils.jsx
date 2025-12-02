@@ -9,8 +9,15 @@ export function dataURLtoBlob(dataURL) {
 }
 
 export function speech(content) {
-    if (!window.speechSynthesis) return;
-    const utter = new SpeechSynthesisUtterance(content);
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
+    return new Promise((resolve) => {
+        if (!window.speechSynthesis) {
+            resolve();
+            return;
+        }
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(content);
+        utter.onend = () => resolve();
+        utter.onerror = () => resolve();
+        window.speechSynthesis.speak(utter);
+    });
 }

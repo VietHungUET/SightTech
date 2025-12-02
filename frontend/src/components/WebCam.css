@@ -1,34 +1,38 @@
+/* ===========================================
+   WebCam.css - Camera Component
+   Consistent with green theme
+=========================================== */
+
 .webcam {
-    grid-column: 2 / 6;
-    grid-row: 1 / 5;
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background: #000;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .camera {
-    width: 100%;
-    height: 100%;
-    object-fit: cover
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  max-height: 100%;
 }
 
-.webcam-controls {
-    position: absolute;
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1;
-    display: flex;
-    gap: 15px;
+/* Loading state */
+.webcam::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(45deg, #098D71 0%, #067a62 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
-.webcam-controls button {
-    border-radius: 50%;
-    min-width: 50px;
-    width: 50px;
-    height: 50px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+.webcam.loading::before {
+  opacity: 0.1;
 }

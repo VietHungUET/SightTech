@@ -1,42 +1,157 @@
-nav {
-    display: flex;
-    /*background-color:  #028f76;*/
-    background-color: #098D71;
-    width: 100%;
-    height: 60px;
+/* ===========================================
+   MenuBar.css - Bottom Navigation Bar
+   Primary: Green (#098D71), White background
+   Icons-only approach with tooltips
+=========================================== */
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  width: auto;
+  max-width: 90%;
+  margin: 0 auto 1.5rem auto;
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1), 0 4px 10px rgba(0, 0, 0, 0.05);
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
-a {
-    text-decoration: none;
-    color:  white;
-    font-size: 1.2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: fit-content;
-    padding-left: 30px;
-    padding-right: 30px;
+/* Hide Brand Section in bottom nav */
+.nav-brand {
+  display: none;
 }
 
-a:hover {
-    color: black;
+/* Navigation Links */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: center;
 }
 
-a.active {
-    color:  black;
-    background-color:  #b3e099;
+.nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: #888;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: relative;
+  overflow: hidden;
 }
 
-.logo-container {
-    width: 70px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba(255, 255, 255, 0.9);
+.nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: transform 0.3s ease;
 }
 
-.logo {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+/* Hover State */
+.nav-link:hover {
+  background-color: rgba(9, 141, 113, 0.1);
+  color: #098D71;
+  transform: translateY(-5px);
+}
+
+.nav-link:hover .nav-icon {
+  transform: scale(1.1);
+}
+
+/* Active State - Gradient Effect */
+.nav-link.active {
+  background: linear-gradient(135deg, #098D71 0%, #0aa885 100%);
+  color: #ffffff;
+  box-shadow: 0 10px 20px rgba(9, 141, 113, 0.4);
+  transform: translateY(-10px) scale(1.1);
+}
+
+/* Special effect for active icon */
+.nav-link.active .nav-icon {
+  animation: iconPop 0.5s ease forwards;
+}
+
+/* Gradient border/glow effect for active item */
+.nav-link.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  background: linear-gradient(45deg, rgba(255,255,255,0.2), transparent);
+  z-index: 1;
+}
+
+/* Optional: Add a small dot below active item to ground it */
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background-color: #098D71;
+  border-radius: 50%;
+  opacity: 0;
+  animation: dotFadeIn 0.3s 0.2s forwards;
+}
+
+@keyframes iconPop {
+  0% {
+    transform: scale(0.8);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes dotFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .main-nav {
+    width: 95%;
+    padding: 0.5rem 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .nav-links {
+    gap: 0.5rem;
+  }
+
+  .nav-link {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .nav-link.active {
+    transform: translateY(-5px) scale(1.1);
+  }
 }
