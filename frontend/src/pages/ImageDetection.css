@@ -172,7 +172,13 @@
   font-weight: 600;
   color: #333333;
   text-align: center;
-  min-width: 60px;
+}
+
+.btn-wrapper {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 /* Output Section - Right Side */

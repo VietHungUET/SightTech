@@ -1,3 +1,6 @@
+/* Import Atkinson Hyperlegible - Font cho người thị lực kém */
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap');
+
 * {
   margin: 0;
   padding: 0;
@@ -9,7 +12,11 @@
   background: linear-gradient(135deg, #2d5f4f 0%, #1e3d33 50%, #2d5f4f 100%);
   position: relative;
   overflow: hidden;
-  font-family: 'Arial', sans-serif;
+  font-family: 'Atkinson Hyperlegible', sans-serif;
+  /* WCAG 1.4.12 Text Spacing Compliance */
+  line-height: 1.5; /* Tối thiểu 1.5 lần kích thước font */
+  letter-spacing: 0.12em; /* Tối thiểu 0.12 lần kích thước font */
+  word-spacing: 0.16em; /* Tối thiểu 0.16 lần kích thước font */
 }
 
 /* Decorative Leaves */
@@ -273,8 +280,10 @@
 .hero-title {
   font-size: 58px;
   font-weight: bold;
-  line-height: 1.2;
-  margin-bottom: 30px;
+  line-height: 1.5; /* WCAG 1.4.12: tối thiểu 1.5 */
+  letter-spacing: 0.12em; /* WCAG 1.4.12: tối thiểu 0.12em */
+  word-spacing: 0.16em; /* WCAG 1.4.12: tối thiểu 0.16em */
+  margin-bottom: 1em;
   color: #ffffff;
   text-shadow: 
     0 0 5px rgba(255, 255, 255, 0.5),
@@ -303,9 +312,11 @@
 
 .hero-description {
   font-size: 18px;
-  line-height: 1.8;
+  line-height: 1.5; /* WCAG 1.4.12: tối thiểu 1.5 */
+  letter-spacing: 0.11em; /* WCAG 1.4.12 */
+  word-spacing: 0.16em; /* WCAG 1.4.12 */
   color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 40px;
+  margin-bottom: 1em;
 }
 
 .read-more-btn {

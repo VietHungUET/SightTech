@@ -405,34 +405,38 @@ export default function ImageDetection() {
             role="group"
             aria-label="Image capture controls"
           >
-            <Tooltip title={isProcessing ? "Processing..." : "Take Snapshot"} arrow>
-              <span>
+            <div className="btn-wrapper">
+              <Tooltip title={isProcessing ? "Processing..." : "Take Snapshot"} arrow>
+                <span>
+                  <IconButton
+                    className={`action-icon-btn capture-btn ${isProcessing ? 'processing' : ''}`}
+                    onClick={() => capture("manual")}
+                    disabled={isProcessing}
+                    aria-label={isProcessing ? "Processing image, please wait" : "Take snapshot"}
+                    aria-busy={isProcessing}
+                    size="large"
+                  >
+                    <PhotoCamera />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <span className="btn-label">Snapshot</span>
+            </div>
+
+            <div className="btn-wrapper">
+              <Tooltip title={isRecording ? "Stop Listening" : "Voice Command"} arrow>
                 <IconButton
-                  className={`action-icon-btn capture-btn ${isProcessing ? 'processing' : ''}`}
-                  onClick={() => capture("manual")}
-                  disabled={isProcessing}
-                  aria-label={isProcessing ? "Processing image, please wait" : "Take snapshot"}
-                  aria-busy={isProcessing}
+                  className={`action-icon-btn voice-btn ${isRecording ? 'active' : ''}`}
+                  onClick={handleVoiceToggle}
+                  aria-label={isRecording ? "Stop listening" : "Start voice command"}
+                  aria-pressed={isRecording}
                   size="large"
                 >
-                  <PhotoCamera />
+                  {isRecording ? <StopCircle /> : <KeyboardVoice />}
                 </IconButton>
-              </span>
-            </Tooltip>
-            <span className="btn-label">Snapshot</span>
-
-            <Tooltip title={isRecording ? "Stop Listening" : "Voice Command"} arrow>
-              <IconButton
-                className={`action-icon-btn voice-btn ${isRecording ? 'active' : ''}`}
-                onClick={handleVoiceToggle}
-                aria-label={isRecording ? "Stop listening" : "Start voice command"}
-                aria-pressed={isRecording}
-                size="large"
-              >
-                {isRecording ? <StopCircle /> : <KeyboardVoice />}
-              </IconButton>
-            </Tooltip>
-            <span className="btn-label">Voice</span>
+              </Tooltip>
+              <span className="btn-label">Voice</span>
+            </div>
           </div>
         </section>
 
