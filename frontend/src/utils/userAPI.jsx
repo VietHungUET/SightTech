@@ -50,6 +50,11 @@ const userAPI = {
         formData.append('message', message);
         return axiosClient.post(url, formData);
     },
+
+    postImageCaptioning: (imageData) => {
+        const url = "/image_captioning";
+        return axiosClient.post(url, imageData);
+    },
 }
 
 export default userAPI;
