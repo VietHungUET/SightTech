@@ -164,9 +164,24 @@ export default function ImageDetection() {
           }
           break;
         }
+        case "Object": {
+          try {
+            const captionResult = await userAPI.postImageCaptioning(formData);
+            const data = captionResult?.data ?? {};
+            const caption = data.text || "No description available.";
+            setReply(caption);
+            speech(caption);
+          } catch (error) {
+            console.error("Object detection error:", error);
+            const errorMsg = error.response?.data?.detail || "Object detection failed. Please try again.";
+            speech(errorMsg);
+            setReply(errorMsg);
+          }
+          break;
+        }
         default: {
-          speech("Object detection is not implemented yet.");
-          setReply("Object detection is not implemented yet.");
+          speech("This detection mode is not implemented yet.");
+          setReply("This detection mode is not implemented yet.");
           break;
         }
       }

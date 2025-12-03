@@ -34,8 +34,8 @@ export function speech(content) {
             }
             
             // Cài đặt tốc độ và âm lượng
-            utter.rate = 0.9;      // Tốc độ chậm hơn một chút
-            utter.pitch = 0.9;     
+            utter.rate = 0.8;      // Tốc độ chậm hơn một chút
+            utter.pitch = 1.0;     
             utter.volume = 1.0;    
             
             utter.onend = () => resolve();

@@ -168,7 +168,6 @@ async def image_captioning(file: UploadFile = File(...)):
         image_data = await file.read()
         base64_image = base64.b64encode(image_data).decode("utf-8")
 
-        # 1. Gọi caption
         caption = get_llm_response(
             query="Extract text from this image.",
             task="image_captioning",
@@ -178,20 +177,9 @@ async def image_captioning(file: UploadFile = File(...)):
         if not caption:
             raise HTTPException(status_code=500, detail="Failed to generate caption")
 
-        # 2. Convert caption → audio
-        audio_path = format_audio_response(
-            caption,
-            "image_captioning"
-        )
-
-        if not audio_path:
-            raise HTTPException(status_code=500, detail="Failed to generate audio")
-
-        # 3. Trả về caption + audio url
         return JSONResponse(content={
             "status": "success",
             "text": caption,
-            "audio_url": f"/download_audio?audio_path={audio_path}"
         })
 
     except Exception as e:
