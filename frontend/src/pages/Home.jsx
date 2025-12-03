@@ -1,44 +1,13 @@
-import {useCallback, useEffect, useRef, useState} from "react";
-import MicNoneIcon from "@mui/icons-material/MicNone";
-import {speech} from "../utils/utils.jsx";
-import userAPI from "../utils/userAPI.jsx";
+import { useEffect, useState } from "react";
+import { speech } from "../utils/utils.jsx";
+import logo from "../assets/logo.png";
 import "./Home.css";
 
 const INTRO_MESSAGE =
-  "Hello and welcome to SightTech! SightTech is an AI-powered application designed to assist visually impaired users with various tasks including object detection, currency recognition, music identification, and more. Would you like me to walk you through the main features? Please say yes or no.";
+  "Hello and welcome to SightTech! SightTech is an AI-powered application designed to assist visually impaired users with various tasks including object detection, currency recognition, music identification, chatbot assistance, and news reading. Explore the features using the navigation bar. Thank you for using SightTech!";
 
-const GUIDE_MESSAGE =
-  "Great! Here is your SightTech tour. First, open Image Detection to point your camera and hear real-time descriptions of objects, scenes, or text. Inside that workspace you can also switch to Currency Detection to recognize Vietnamese banknotes and hear their values, or Barcode mode to identify packaged products. Next, head to Music Detection so SightTech can listen for a few seconds and speak back the song title, artist, and album. The Chatbot is always ready for questions, while the News area summarizes and reads important articles aloud. At any moment you can press the Voice Command buttons in each feature to control SightTech hands-free.";
-
-const ENJOY_MESSAGE =
-  "Alright! Feel free to explore SightTech on your own. Select any feature from the navigation bar whenever you're ready, and tap the guide button or use your voice if you would like assistance later.";
-
-const YES_KEYWORDS = [
-  "yes",
-  "yeah",
-  "yep",
-  "sure",
-  "please",
-  "guide",
-  "có",
-  "co",
-  "oke",
-  "ok",
-  "đồng ý",
-  "dong y",
-];
-
-const NO_KEYWORDS = ["no", "nope", "nah", "later", "không", "khong", "maybe"];
-
-export default function Home() {
-  const [statusText, setStatusText] = useState("Introducing SightTech...");
-  const [userChoice, setUserChoice] = useState(null);
-  const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [micError, setMicError] = useState(false);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const streamRef = useRef(null);
+const Home = () => {
+  const [statusText] = useState("Welcome to SightTech");
 
   useEffect(() => {
     speech(INTRO_MESSAGE);
@@ -47,219 +16,49 @@ export default function Home() {
       if (window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
-      if (
-        mediaRecorderRef.current &&
-        mediaRecorderRef.current.state !== "inactive"
-      ) {
-        mediaRecorderRef.current.stop();
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
     };
   }, []);
 
-  const updateSpeech = useCallback((message, status) => {
-    if (status) {
-      setStatusText(status);
-    }
-    speech(message);
-  }, []);
-
-  const stopListening = useCallback(() => {
-    const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state !== "inactive") {
-      recorder.stop();
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    setIsListening(false);
-  }, []);
-
-  const handleChoice = useCallback(
-    (decision) => {
-      stopListening();
-      setUserChoice(decision);
-      if (decision === "yes") {
-        updateSpeech(GUIDE_MESSAGE, "Sharing the onboarding guide.");
-      } else {
-        updateSpeech(ENJOY_MESSAGE, "Enjoy exploring SightTech!");
-      }
-    },
-    [stopListening, updateSpeech],
-  );
-
-  const interpretTranscript = useCallback(
-    (text) => {
-      const normalized = text?.trim() ?? "";
-      setTranscript(normalized);
-      if (!normalized) {
-        setStatusText("I could not catch that. Please try again.");
-        speech("I did not catch that. Could you say yes or no?");
-        return;
-      }
-
-      const lowered = normalized.toLowerCase();
-      if (YES_KEYWORDS.some((keyword) => lowered.includes(keyword))) {
-        handleChoice("yes");
-        return;
-      }
-
-      if (NO_KEYWORDS.some((keyword) => lowered.includes(keyword))) {
-        handleChoice("no");
-        return;
-      }
-
-      setStatusText(`I heard "${normalized}", but I need a clear yes or no.`);
-      speech("I heard you, but I still need a clear yes or no.");
-    },
-    [handleChoice],
-  );
-
-  const sendForTranscription = useCallback(
-    async (audioBlob) => {
-      const formData = new FormData();
-      formData.append("file", audioBlob, "onboarding-response.webm");
-      try {
-        const response = await userAPI.transcribeOnboarding(formData);
-        interpretTranscript(response.data?.transcript || "");
-      } catch (error) {
-        console.error("Transcription error", error);
-        setStatusText("Unable to process the recording.");
-        speech("I could not process that recording. Please try again.");
-      }
-    },
-    [interpretTranscript],
-  );
-
-  const startListening = useCallback(async () => {
-    try {
-      setMicError(false);
-      const stream = await navigator.mediaDevices.getUserMedia({audio: true});
-      streamRef.current = stream;
-      const recorder = new MediaRecorder(stream, {mimeType: "audio/webm"});
-      audioChunksRef.current = [];
-
-      recorder.addEventListener("dataavailable", (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      });
-
-      recorder.addEventListener("stop", async () => {
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach((track) => track.stop());
-          streamRef.current = null;
-        }
-        const audioBlob = new Blob(audioChunksRef.current, {type: "audio/webm"});
-        audioChunksRef.current = [];
-        setIsListening(false);
-
-        if (audioBlob.size > 0) {
-          await sendForTranscription(audioBlob);
-        } else {
-          setStatusText("No audio detected. Try speaking again.");
-          speech("I did not detect any audio. Please try again.");
-        }
-      });
-
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setIsListening(true);
-      setStatusText("Listening for a yes or no...");
-      speech(
-        "I'm listening. Please say yes if you want guidance or no if you'd like to explore alone.",
-      );
-    } catch (error) {
-      console.error("Microphone access error", error);
-      setStatusText("Unable to access the microphone.");
-      speech("I could not access your microphone. Please check permissions.");
-      stopListening();
-      setMicError(true);
-    }
-  }, [sendForTranscription, stopListening]);
-
-  useEffect(() => {
-    if (!userChoice && !isListening && !micError) {
-      const timer = setTimeout(() => {
-        startListening();
-      }, 600);
-      return () => clearTimeout(timer);
-    }
-  }, [isListening, userChoice, micError, startListening]);
-
   return (
-    <main className="home-page">
-      <section className="home-hero">
-        <div className="hero-content">
-          <p className="hero-eyebrow">Welcome to SightTech</p>
-          <h1>
-            <span>Illuminating Your World with AI</span>
-          </h1>
-          <p className="hero-description">
-            SightTech is an AI-powered application designed to assist visually
-            impaired users with real-time object detection, currency recognition,
-            music identification, article summaries, and more. Let&apos;s get you
-            started.
-          </p>
-          <div className="hero-actions">
-            <button
-              type="button"
-              className="choice-button primary"
-              onClick={() => handleChoice("yes")}
-            >
-              Yes, guide me
-            </button>
-            <button
-              type="button"
-              className="choice-button secondary"
-              onClick={() => handleChoice("no")}
-            >
-              No, I&apos;ll explore
-            </button>
-          </div>
-          <p className="hero-note">
-            Prefer speaking? I&apos;m already listening—just say “yes” or “no”.
-          </p>
-          <div className="status-pill" aria-live="polite">
-            <span
-              className={`status-indicator ${
-                userChoice === "yes"
-                  ? "positive"
-                  : userChoice === "no"
-                    ? "neutral"
-                    : ""
-              }`}
-            />
-            {statusText}
-          </div>
+    <div className="home-container">
+      {/* Decorative leaves */}
+      <div className="leaf leaf-1"></div>
+      <div className="leaf leaf-2"></div>
+      <div className="leaf leaf-3"></div>
+      <div className="leaf leaf-4"></div>
+      <div className="leaf leaf-5"></div>
+      <div className="leaf leaf-6"></div>
+      <div className="leaf leaf-7"></div>
+      <div className="leaf leaf-8"></div>
 
-          <div
-            className={`listening-indicator ${isListening ? "active" : ""}`}
-            aria-live="polite"
-          >
-            <div className="listening-icon">
-              <span className="listening-ring ring-outer" />
-              <span className="listening-ring ring-middle" />
-              <span className="listening-ring ring-inner" />
-              <span className="listening-core">
-                <MicNoneIcon fontSize="large" />
-              </span>
-            </div>
-            <p className="listening-text">
-              {isListening
-                ? "Listening for your answer..."
-                : transcript
-                  ? `I heard: "${transcript}".`
-                  : micError
-                    ? "Microphone unavailable. Please check permissions."
-                    : "I’ll listen again in a moment."}
-            </p>
+      {/* Navigation */}
+      <nav className="navbar">
+        <div className="nav-content">
+          <div className="logo-wrapper">
+            <span className="logo-text">SightTech</span>
+            <img src={logo} alt="SightTech Logo" className="logo" />
           </div>
         </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="hero-section">
+        <div className="hero-content">
+          <h1 className="hero-title">
+            Illuminating Your World with AI
+          </h1>
+          <p className="hero-description">
+            SightTech provides AI-powered assistance for object detection,<br />
+            currency recognition, music identification, chatbot support,<br />
+            and news reading - making the world more accessible for everyone.
+          </p>
+        </div>
       </section>
-    </main>
+
+      {/* Wave decoration */}
+      <div className="wave-decoration"></div>
+    </div>
   );
-}
+};
+
+export default Home;
