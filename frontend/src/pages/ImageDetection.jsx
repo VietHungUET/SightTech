@@ -151,17 +151,52 @@ export default function ImageDetection() {
           formData.append("trigger", triggerSource === "voice" ? "voice-command" : "snapshot");
           const barcodeResult = await userAPI.postBarcodeScan(formData);
           const data = barcodeResult?.data ?? {};
-          const speechText = data.speech_text || data.message || "Barcode scan completed.";
-          setReply(data.message || speechText);
-
-          if (data.audio_url) {
-            const audio = new Audio(`${API_BASE_URL}${data.audio_url}`);
-            audio.play().catch(() => {
-              speech(speechText);
-            });
+          
+          let displayText = "";
+          let speechContent = "";
+          
+          if (data.status === "success" && data.product) {
+            const product = data.product;
+            const lines = [];
+            
+            // Product name and brand
+            if (product.brand) {
+              lines.push(`${product.name} - ${product.brand}`);
+              speechContent = `This is ${product.name} by ${product.brand}.`;
+            } else {
+              lines.push(product.name);
+              speechContent = `This is ${product.name}.`;
+            }
+            
+            // Product type
+            if (product.type) {
+              lines.push(`Type: ${product.type}`);
+            }
+            
+            // Nutrition facts
+            if (product.nutrition) {
+              lines.push("");
+              lines.push("Nutrition Facts:");
+              const n = product.nutrition;
+              if (n.energy_kcal) lines.push(`Energy: ${parseFloat(n.energy_kcal).toFixed(1)} kcal/100g`);
+              if (n.proteins) lines.push(`Protein: ${parseFloat(n.proteins).toFixed(1)} g/100g`);
+              if (n.carbohydrates) lines.push(`Carbs: ${parseFloat(n.carbohydrates).toFixed(1)} g/100g`);
+              if (n.fat) lines.push(`Fat: ${parseFloat(n.fat).toFixed(1)} g/100g`);
+              
+              speechContent += ` Nutrition facts: Energy ${parseFloat(n.energy_kcal || 0).toFixed(0)} kilocalories, Protein ${parseFloat(n.proteins || 0).toFixed(1)} grams, Carbs ${parseFloat(n.carbohydrates || 0).toFixed(1)} grams, Fat ${parseFloat(n.fat || 0).toFixed(1)} grams per 100 grams.`;
+            }
+            
+            displayText = lines.join("\n");
+          } else if (data.status === "partial") {
+            displayText = "Barcode detected but product not found in database.";
+            speechContent = displayText;
           } else {
-            speech(speechText);
+            displayText = "No barcode detected. Please try again with better lighting.";
+            speechContent = displayText;
           }
+          
+          setReply(displayText);
+          speech(speechContent);
           break;
         }
         case "Object": {
@@ -255,8 +290,8 @@ export default function ImageDetection() {
         });
         detect();
       } else {
-        console.warn("BarcodeDetector is not supported in this browser.");
-        speech("Barcode detection is not supported in this browser.");
+        // BarcodeDetector API not supported, but Snapshot button still works via backend
+        console.warn("BarcodeDetector API not supported - real-time detection disabled, Snapshot still works.");
       }
     }
 
