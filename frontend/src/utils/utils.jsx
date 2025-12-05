@@ -8,6 +8,10 @@ export function dataURLtoBlob(dataURL) {
     return new Blob([bytes], { type: mime });
 }
 
+export function isSpeaking() {
+    return window.speechSynthesis && window.speechSynthesis.speaking;
+}
+
 export function speech(content) {
     return new Promise((resolve) => {
         if (!window.speechSynthesis) {
@@ -19,22 +23,27 @@ export function speech(content) {
         const speak = () => {
             const utter = new SpeechSynthesisUtterance(content);
             
-            // Chọn giọng chất lượng cao - ưu tiên Microsoft Zira
+            // Chọn giọng theo thứ tự ưu tiên (hỗ trợ cả Chrome và Edge/Windows)
             const voices = window.speechSynthesis.getVoices();
-            const preferredVoice = voices.find(v => v.name.includes("Zira")) ||
-                voices.find(v => 
-                    v.lang.startsWith("en") && 
-                    (v.name.includes("Google") || 
-                     v.name.includes("Samantha") || 
-                     v.name.includes("Enhanced"))
-                ) || voices.find(v => v.lang.startsWith("en"));
+            const preferredVoice = 
+                // Microsoft voices (Edge/Windows)
+                voices.find(v => v.name.includes("Zira")) ||
+                voices.find(v => v.name.includes("Microsoft") && v.lang.startsWith("en")) ||
+                // Google voices (Chrome)
+                voices.find(v => v.name.includes("Google") && v.lang.startsWith("en-US")) ||
+                voices.find(v => v.name.includes("Google") && v.lang.startsWith("en")) ||
+                // macOS voices
+                voices.find(v => v.name.includes("Samantha")) ||
+                // Fallback to any English voice
+                voices.find(v => v.lang.startsWith("en-US")) ||
+                voices.find(v => v.lang.startsWith("en"));
             
             if (preferredVoice) {
                 utter.voice = preferredVoice;
             }
             
             // Cài đặt tốc độ và âm lượng
-            utter.rate = 0.8;      // Tốc độ chậm hơn một chút
+            utter.rate = 0.8;      // Tốc độ vừa phải
             utter.pitch = 1.0;     
             utter.volume = 1.0;    
             
