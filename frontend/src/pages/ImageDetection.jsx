@@ -8,11 +8,13 @@ import {
   CameraAlt,
   Article,
   MonetizationOn,
-  QrCodeScanner
+  QrCodeScanner,
+  PlayArrow,
+  Stop
 } from "@mui/icons-material";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import userAPI, { API_BASE_URL } from "../utils/userAPI.jsx";
+import userAPI, { API_BASE_URL, WS_BASE_URL } from "../utils/userAPI.jsx";
 import { dataURLtoBlob, speech } from "../utils/utils.jsx";
 
 // Map URL mode to detection type
@@ -41,6 +43,9 @@ export default function ImageDetection() {
   const lastScannedTime = useRef(0);
   const isProcessingRef = useRef(false);
   const isVoiceActiveRef = useRef(false);
+  const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const frameIntervalRef = useRef(null);
 
   // Initialize detection type from URL parameter
   const initialType = mode && modeToType[mode.toLowerCase()] ? modeToType[mode.toLowerCase()] : "Object";
@@ -48,6 +53,8 @@ export default function ImageDetection() {
   const [reply, setReply] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isRealtimeActive, setIsRealtimeActive] = useState(false);
+  const [realtimeDescription, setRealtimeDescription] = useState("");
 
   // Sync detection type with URL parameter
   useEffect(() => {
@@ -59,7 +66,207 @@ export default function ImageDetection() {
         speech(`Switched to ${newType} detection`);
       }
     }
-  }, [mode]);
+  }, [mode, detectionType]);
+
+  // Send frames to backend via WebSocket
+  const sendFrameToBackend = useCallback(() => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    const webcam = webcamRef.current;
+    const imageSrc = webcam?.getScreenshot();
+
+    if (!imageSrc) {
+      console.warn("[Real-time] Could not capture frame");
+      return;
+    }
+
+    try {
+      // Send base64 image to backend
+      // Extract base64 data (remove data:image/jpeg;base64, prefix)
+      const base64Data = imageSrc.split(',')[1];
+      
+      wsRef.current.send(JSON.stringify({
+        type: "frame",
+        data: base64Data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.error("[Real-time] Failed to send frame:", error);
+    }
+  }, []);
+
+  // WebSocket connection for real-time object detection
+  const connectWebSocket = useCallback(() => {
+    if (detectionType !== "Object" || !isRealtimeActive) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    try {
+      console.log("[WebSocket] Connecting to real-time description service...");
+      const ws = new WebSocket(`${WS_BASE_URL}/ws/realtime-description`);
+      
+      ws.onopen = () => {
+        console.log("[WebSocket] Connected successfully");
+        setRealtimeDescription("Real-time description active. Analyzing scene...");
+        
+        // Start sending frames every 3 seconds
+        frameIntervalRef.current = setInterval(() => {
+          sendFrameToBackend();
+        }, 3000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === "description") {
+            const description = data.text || data.description;
+            console.log("[WebSocket] Received description:", description);
+            setRealtimeDescription(description);
+            setReply(description);
+            // Speak the description every time
+            speech(description);
+          } else if (data.type === "error") {
+            console.error("[WebSocket] Error:", data.message);
+            setRealtimeDescription(`Error: ${data.message}`);
+          } else if (data.type === "status") {
+            console.log("[WebSocket] Status:", data.message);
+          }
+        } catch (err) {
+          console.error("[WebSocket] Failed to parse message:", err);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error("[WebSocket] Connection error:", error);
+        setRealtimeDescription("Connection error occurred");
+      };
+
+      ws.onclose = (event) => {
+        console.log("[WebSocket] Connection closed:", event.code, event.reason);
+        wsRef.current = null;
+        
+        // Stop sending frames
+        if (frameIntervalRef.current) {
+          clearInterval(frameIntervalRef.current);
+          frameIntervalRef.current = null;
+        }
+        
+        // Show disconnection message only if it was unexpected
+        if (event.code !== 1000 && isRealtimeActive) {
+          setRealtimeDescription("Connection lost. Please restart real-time mode.");
+          setIsRealtimeActive(false);
+        }
+      };
+
+      wsRef.current = ws;
+    } catch (error) {
+      console.error("[WebSocket] Failed to create connection:", error);
+      setRealtimeDescription("Failed to connect to service");
+      setIsRealtimeActive(false);
+    }
+  }, [detectionType, isRealtimeActive, sendFrameToBackend]);
+
+  // Start real-time description
+  const startRealtimeDescription = useCallback(async () => {
+    try {
+      setIsRealtimeActive(true);
+      setRealtimeDescription("Starting real-time description...");
+      speech("Starting real-time scene description");
+
+      // Connect WebSocket (no need to start backend camera)
+      connectWebSocket();
+    } catch (error) {
+      console.error("[Real-time] Failed to start:", error);
+      speech("Failed to start real-time description");
+      setRealtimeDescription("Failed to start service");
+      setIsRealtimeActive(false);
+    }
+  }, [connectWebSocket]);
+
+  // Stop real-time description
+  const stopRealtimeDescription = useCallback(async () => {
+    try {
+      setIsRealtimeActive(false);
+      speech("Stopping real-time description");
+
+      // Stop sending frames FIRST
+      if (frameIntervalRef.current) {
+        clearInterval(frameIntervalRef.current);
+        frameIntervalRef.current = null;
+      }
+
+      // Clear reconnect timeout (if any)
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+
+      // Close WebSocket with normal closure code
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.close(1000, "User stopped real-time mode");
+        wsRef.current = null;
+      }
+
+      setRealtimeDescription("");
+      setReply("");
+    } catch (error) {
+      console.error("[Real-time] Failed to stop:", error);
+    }
+  }, []);
+
+  // Toggle real-time description
+  const handleRealtimeToggle = useCallback(() => {
+    if (isRealtimeActive) {
+      stopRealtimeDescription();
+    } else {
+      startRealtimeDescription();
+    }
+  }, [isRealtimeActive, startRealtimeDescription, stopRealtimeDescription]);
+
+  // Connect WebSocket when real-time becomes active
+  useEffect(() => {
+    if (isRealtimeActive && detectionType === "Object") {
+      connectWebSocket();
+    } else {
+      // Clean up when deactivating
+      if (frameIntervalRef.current) {
+        clearInterval(frameIntervalRef.current);
+        frameIntervalRef.current = null;
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    }
+
+    return () => {
+      if (frameIntervalRef.current) {
+        clearInterval(frameIntervalRef.current);
+        frameIntervalRef.current = null;
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+  }, [isRealtimeActive, detectionType, connectWebSocket]);
+
+  // Stop real-time when switching away from Object mode
+  useEffect(() => {
+    if (detectionType !== "Object" && isRealtimeActive) {
+      stopRealtimeDescription();
+    }
+  }, [detectionType, isRealtimeActive, stopRealtimeDescription]);
 
   const capture = useCallback(async (triggerSource = "manual") => {
     if (isProcessing) {
@@ -159,7 +366,6 @@ export default function ImageDetection() {
             const product = data.product;
             const lines = [];
             
-            // Product name and brand
             if (product.brand) {
               lines.push(`${product.name} - ${product.brand}`);
               speechContent = `This is ${product.name} by ${product.brand}.`;
@@ -168,12 +374,10 @@ export default function ImageDetection() {
               speechContent = `This is ${product.name}.`;
             }
             
-            // Product type
             if (product.type) {
               lines.push(`Type: ${product.type}`);
             }
             
-            // Nutrition facts
             if (product.nutrition) {
               lines.push("");
               lines.push("Nutrition Facts:");
@@ -235,6 +439,7 @@ export default function ImageDetection() {
 
   useEffect(() => {
     setReply("");
+    setRealtimeDescription("");
   }, [detectionType]);
 
   useEffect(() => {
@@ -290,7 +495,6 @@ export default function ImageDetection() {
         });
         detect();
       } else {
-        // BarcodeDetector API not supported, but Snapshot button still works via backend
         console.warn("BarcodeDetector API not supported - real-time detection disabled, Snapshot still works.");
       }
     }
@@ -303,8 +507,6 @@ export default function ImageDetection() {
       }
     };
   }, [detectionType, capture]);
-
-
 
   const processVoiceCommand = useCallback(async (commandData) => {
     if (!commandData) {
@@ -403,7 +605,7 @@ export default function ImageDetection() {
     }
   }, [isRecording, startRecording, stopRecording]);
 
-  const replyMessage = reply || (isProcessing ? "Processing..." : "Ready when you are.");
+  const replyMessage = realtimeDescription || reply || (isProcessing ? "Processing..." : "Ready when you are.");
 
   return (
     <main
@@ -458,6 +660,24 @@ export default function ImageDetection() {
               <span className="btn-label">Snapshot</span>
             </div>
 
+            {/* Real-time toggle button (Object mode only) */}
+            {detectionType === "Object" && (
+              <div className="btn-wrapper">
+                <Tooltip title={isRealtimeActive ? "Stop Real-time" : "Start Real-time"} arrow>
+                  <IconButton
+                    className={`action-icon-btn realtime-btn ${isRealtimeActive ? 'active' : ''}`}
+                    onClick={handleRealtimeToggle}
+                    aria-label={isRealtimeActive ? "Stop real-time description" : "Start real-time description"}
+                    aria-pressed={isRealtimeActive}
+                    size="large"
+                  >
+                    {isRealtimeActive ? <Stop /> : <PlayArrow />}
+                  </IconButton>
+                </Tooltip>
+                <span className="btn-label">Real-time</span>
+              </div>
+            )}
+
             <div className="btn-wrapper">
               <Tooltip title={isRecording ? "Stop Listening" : "Voice Command"} arrow>
                 <IconButton
@@ -482,7 +702,10 @@ export default function ImageDetection() {
         >
           <div className="output-header">
             <span className="output-title">Results</span>
-            <span className="mode-badge">{detectionType}</span>
+            <span className="mode-badge">
+              {detectionType}
+              {detectionType === "Object" && isRealtimeActive && " (Live)"}
+            </span>
           </div>
           <output
             id="detection-response"
