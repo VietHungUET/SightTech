@@ -8,6 +8,7 @@ const axiosClient = axios.create({
 });
 
 export const API_BASE_URL = axiosClient.defaults.baseURL;
+export const WS_BASE_URL = "ws://localhost:8000";
 
 const userAPI = {
     postDocumentRecognition: (imageData) => {
@@ -39,6 +40,7 @@ const userAPI = {
         const url = "/music_detection";
         return axiosClient.post(url, audioData);
     },
+
     postChatbot: (data) => {
         const url = "/chatbot";
         return axiosClient.post(url, data);
@@ -54,6 +56,22 @@ const userAPI = {
     postImageCaptioning: (imageData) => {
         const url = "/image_captioning";
         return axiosClient.post(url, imageData);
+    },
+
+    // Real-time description endpoints
+    startRealtimeDescription: () => {
+        const url = "/realtime-description/start";
+        return axiosClient.post(url);
+    },
+
+    stopRealtimeDescription: () => {
+        const url = "/realtime-description/stop";
+        return axiosClient.post(url);
+    },
+
+    getRealtimeDescriptionStatus: () => {
+        const url = "/realtime-description/status";
+        return axiosClient.get(url);
     },
 }
 

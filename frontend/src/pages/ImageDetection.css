@@ -161,6 +161,25 @@
   animation: pulse-recording 1.5s infinite;
 }
 
+.realtime-btn {
+  background-color: #ffffff !important;
+  color: #098D71 !important;
+  border: 3px solid #098D71 !important;
+  box-shadow: 0 2px 8px rgba(9, 141, 113, 0.15) !important;
+}
+
+.realtime-btn:hover {
+  background-color: #e8f5f1 !important;
+  transform: scale(1.05);
+}
+
+.realtime-btn.active {
+  background-color: #dc3545 !important;
+  border-color: #dc3545 !important;
+  color: #ffffff !important;
+  animation: pulse-recording 1.5s infinite;
+}
+
 @keyframes pulse-recording {
   0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
   70% { box-shadow: 0 0 0 12px rgba(220, 53, 69, 0); }
