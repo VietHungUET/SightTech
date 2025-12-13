@@ -485,7 +485,7 @@ export default function MusicDetection() {
                                 {result.coverImage && (
                                     <CardMedia
                                         component="img"
-                                        style={{width:"50%"}}
+                                        style={{width:"30%"}}
                                         image={result.coverImage}
                                         alt={result.title}
                                         className="music-detection-cover"
@@ -523,19 +523,6 @@ export default function MusicDetection() {
                                         )}
                                     </Box>
 
-                                    {result.audioPath && (
-                                        <Box sx={{ mt: 2, display: 'flex', gap: 1, justifyContent: 'center' }}>
-                                            <Button
-                                                variant="contained"
-                                                color={isPlaying ? "secondary" : "primary"}
-                                                onClick={isPlaying ? stopMusic : playMusic}
-                                                startIcon={isPlaying ? <Pause /> : <PlayArrow />}
-                                            >
-                                                {isPlaying ? "Stop Music" : "Play Music"}
-                                            </Button>
-                                        </Box>
-                                    )}
-
                                     <Chip
                                         label={`Detected at ${result.timestamp}`}
                                         size="small"
@@ -543,6 +530,17 @@ export default function MusicDetection() {
                                         variant="outlined"
                                     />
                                 </CardContent>
+                                
+                                {result.audioPath && (
+                                    <Button
+                                        variant="contained"
+                                        onClick={isPlaying ? stopMusic : playMusic}
+                                        className="music-detection-play-icon-button"
+                                        aria-label={isPlaying ? "Stop music" : "Play music"}
+                                    >
+                                        {isPlaying ? <Pause sx={{ fontSize: '32px' }} /> : <PlayArrow sx={{ fontSize: '32px' }} />}
+                                    </Button>
+                                )}
                             </Card>
                         </Fade>
                     )}
