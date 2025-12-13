@@ -26,10 +26,30 @@ export default function MusicDetection() {
     const audioChunksRef = useRef([]);
     const timeoutRef = useRef(null);
     const recognitionRef = useRef(null);
+    const isListeningRef = useRef(false);
+    const isProcessingRef = useRef(false);
+    const voiceActiveRef = useRef(false);
+
+    const startVoiceRecognition = () => {
+        if (!recognitionRef.current || voiceActiveRef.current) return;
+
+        try {
+            recognitionRef.current.start();
+            voiceActiveRef.current = true;
+            setIsVoiceCommandActive(true);
+            console.log('Voice recognition started');
+        } catch (e) {
+            console.error('Failed to start voice recognition:', e);
+            // If already started, just mark as active
+            if (e.name === 'InvalidStateError') {
+                voiceActiveRef.current = true;
+                setIsVoiceCommandActive(true);
+            }
+        }
+    };
 
     useEffect(() => {
         const introduction = "This is the Music Detection mode. Say 'start listening' to begin detecting music.";
-        speech(introduction);
 
         // Initialize speech recognition
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -41,15 +61,17 @@ export default function MusicDetection() {
 
             recognition.onresult = (event) => {
                 const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-                console.log('Voice command:', transcript);
+                console.log('Voice command received:', transcript);
 
                 if (transcript.includes('start') || transcript.includes('start listening') || transcript.includes('start detection')) {
-                    if (!isListening && !isProcessing) {
+                    console.log('Start command detected. isListening:', isListeningRef.current, 'isProcessing:', isProcessingRef.current);
+                    if (!isListeningRef.current && !isProcessingRef.current) {
                         speech('Starting music detection');
                         startListening();
                     }
                 } else if (transcript.includes('stop listening') || transcript.includes('stop detection')) {
-                    if (isListening) {
+                    console.log('Stop command detected');
+                    if (isListeningRef.current) {
                         stopListening();
                     }
                 }
@@ -57,34 +79,51 @@ export default function MusicDetection() {
 
             recognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error);
-                if (event.error === 'no-speech') {
-                    // Restart recognition if no speech detected
-                    recognition.start();
+                voiceActiveRef.current = false;
+
+                // Don't restart on certain errors
+                if (event.error === 'aborted' || event.error === 'audio-capture') {
+                    return;
                 }
+
+                // Auto-restart on other errors after a delay
+                setTimeout(() => {
+                    if (!voiceActiveRef.current) {
+                        startVoiceRecognition();
+                    }
+                }, 1000);
             };
 
             recognition.onend = () => {
-                // Automatically restart recognition if it stops
-                if (isVoiceCommandActive) {
-                    try {
-                        recognition.start();
-                    } catch (e) {
-                        console.log('Recognition restart failed:', e);
+                console.log('Voice recognition ended, restarting...');
+                voiceActiveRef.current = false;
+
+                // Automatically restart recognition
+                setTimeout(() => {
+                    if (!voiceActiveRef.current) {
+                        startVoiceRecognition();
                     }
-                }
+                }, 500);
+            };
+
+            recognition.onstart = () => {
+                console.log('Voice recognition active');
+                voiceActiveRef.current = true;
+                setIsVoiceCommandActive(true);
             };
 
             recognitionRef.current = recognition;
 
-            // Start voice command recognition
-            try {
-                recognition.start();
-                setIsVoiceCommandActive(true);
-            } catch (e) {
-                console.error('Failed to start voice recognition:', e);
-            }
+            // Speak introduction first, then start voice recognition after speech completes
+            speech(introduction);
+
+            // Wait for introduction to complete before starting voice recognition
+            setTimeout(() => {
+                startVoiceRecognition();
+            }, 6000);
         } else {
             console.warn('Speech recognition not supported in this browser');
+            speech(introduction);
         }
 
         return () => {
@@ -92,13 +131,19 @@ export default function MusicDetection() {
                 clearTimeout(timeoutRef.current);
             }
             if (recognitionRef.current) {
-                recognitionRef.current.stop();
+                voiceActiveRef.current = false;
+                try {
+                    recognitionRef.current.stop();
+                } catch (e) {
+                    console.log('Error stopping recognition:', e);
+                }
             }
         };
     }, []);
 
     const startListening = async () => {
         try {
+            console.log('Starting to listen for music...');
             setResult(null);
             audioChunksRef.current = [];
 
@@ -120,21 +165,29 @@ export default function MusicDetection() {
 
             mediaRecorder.start();
             setIsListening(true);
+            isListeningRef.current = true;
+            console.log('Now listening, refs updated');
 
             timeoutRef.current = setTimeout(() => {
                 if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
                     mediaRecorderRef.current.stop();
                     setIsListening(false);
+                    isListeningRef.current = false;
                     setIsProcessing(true);
+                    isProcessingRef.current = true;
                     speech("Processing the music");
                 }
             }, 10000);
         } catch (err) {
+            console.error('Error starting listener:', err);
             speech('Microphone access denied. Please allow microphone access.');
+            isListeningRef.current = false;
+            setIsListening(false);
         }
     };
 
     const stopListening = () => {
+        console.log('Stopping listening...');
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
         }
@@ -142,13 +195,16 @@ export default function MusicDetection() {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
             mediaRecorderRef.current.stop();
             setIsListening(false);
+            isListeningRef.current = false;
             setIsProcessing(true);
+            isProcessingRef.current = true;
             speech("Processing the music");
         }
     };
 
     const processAudio = async (audioBlob) => {
         try {
+            console.log('Processing audio...');
             const formData = new FormData();
             formData.append('file', audioBlob, 'recording.webm');
 
@@ -175,9 +231,13 @@ export default function MusicDetection() {
                 speech('Unable to identify the music. Please try again.');
             }
             setIsProcessing(false);
+            isProcessingRef.current = false;
+            console.log('Processing complete, ready for next command');
         } catch (err) {
+            console.error('Error processing audio:', err);
             speech('Error processing audio: ' + (err.response?.data?.detail || err.message));
             setIsProcessing(false);
+            isProcessingRef.current = false;
         }
     };
 
