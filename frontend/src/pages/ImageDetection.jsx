@@ -38,7 +38,7 @@ export default function ImageDetection() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const canvasRef = useRef(null);
-  const lastScannedTime = useRef(0);
+
   const isProcessingRef = useRef(false);
   const isVoiceActiveRef = useRef(false);
 
@@ -46,6 +46,7 @@ export default function ImageDetection() {
   const initialType = mode && modeToType[mode.toLowerCase()] ? modeToType[mode.toLowerCase()] : "Object";
   const [detectionType, setDetectionType] = useState(initialType);
   const [reply, setReply] = useState("");
+  const [productInfo, setProductInfo] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -153,6 +154,7 @@ export default function ImageDetection() {
           const data = barcodeResult?.data ?? {};
           const speechText = data.speech_text || data.message || "Barcode scan completed.";
           setReply(data.message || speechText);
+          setProductInfo(data.product || null);
 
           if (data.audio_url) {
             const audio = new Audio(`${API_BASE_URL}${data.audio_url}`);
@@ -206,68 +208,7 @@ export default function ImageDetection() {
     isProcessingRef.current = isProcessing;
   }, [isProcessing]);
 
-  useEffect(() => {
-    let animationFrameId;
-    let barcodeDetector;
 
-    const detect = async () => {
-      if (detectionType !== "Barcode") return;
-
-      if (webcamRef.current && webcamRef.current.video && canvasRef.current) {
-        const video = webcamRef.current.video;
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext("2d");
-
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-
-          try {
-            const barcodes = await barcodeDetector.detect(video);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            if (barcodes.length > 0) {
-              barcodes.forEach(barcode => {
-                const { x, y, width, height } = barcode.boundingBox;
-                ctx.strokeStyle = "red";
-                ctx.lineWidth = 4;
-                ctx.strokeRect(x, y, width, height);
-              });
-
-              const now = Date.now();
-              if (!isProcessingRef.current && (now - lastScannedTime.current > 3000)) {
-                lastScannedTime.current = now;
-                capture("auto");
-              }
-            }
-          } catch (err) {
-            console.error("Barcode detection failed:", err);
-          }
-        }
-      }
-      animationFrameId = requestAnimationFrame(detect);
-    };
-
-    if (detectionType === "Barcode") {
-      if ("BarcodeDetector" in window) {
-        barcodeDetector = new window.BarcodeDetector({
-          formats: ["qr_code", "ean_13", "ean_8", "code_128", "upc_a", "upc_e"]
-        });
-        detect();
-      } else {
-        console.warn("BarcodeDetector is not supported in this browser.");
-        speech("Barcode detection is not supported in this browser.");
-      }
-    }
-
-    return () => {
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      if (canvasRef.current) {
-        const ctx = canvasRef.current.getContext("2d");
-        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      }
-    };
-  }, [detectionType, capture]);
 
 
 
@@ -370,6 +311,36 @@ export default function ImageDetection() {
 
   const replyMessage = reply || (isProcessing ? "Processing..." : "Ready when you are.");
 
+  // Render product info if available
+  const renderProductInfo = (product) => {
+    if (!product) return null;
+    return (
+      <div className="product-info-details">
+        {Object.entries(product).map(([key, value]) => {
+          if (!value) return null;
+          // Render nutrition as a list if it's an object
+          if (key === "nutrition" && typeof value === "object") {
+            return (
+              <div key={key}>
+                <strong>Nutrition:</strong>
+                <ul>
+                  {Object.entries(value).map(([nutriKey, nutriVal]) => (
+                    <li key={nutriKey}><strong>{nutriKey.replace(/_/g, ' ')}:</strong> {nutriVal}</li>
+                  ))}
+                </ul>
+              </div>
+            );
+          }
+          return (
+            <div key={key}>
+              <strong>{key.replace(/_/g, ' ')}:</strong> {value}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <main
       className="image-detection-container"
@@ -457,6 +428,13 @@ export default function ImageDetection() {
             aria-atomic="true"
           >
             {replyMessage}
+            {productInfo && (
+              <div className="product-info-section">
+                <hr />
+                <h4>Product Details</h4>
+                {renderProductInfo(productInfo)}
+              </div>
+            )}
           </output>
         </aside>
       </div>
