@@ -11,6 +11,7 @@ import MenuBar from "./components/MenuBar.jsx";
 import MusicDetection from "./pages/MusicDetection.jsx";
 import News from "./pages/News.jsx";
 import ChatBot from "./pages/ChatBot.jsx";
+import OutdoorNavigation from "./pages/OutdoorNavigation.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
 function Layout() {
@@ -34,6 +35,7 @@ const router = createBrowserRouter(
       <Route path="image" element={<ImageDetection />} />
       <Route path="image/:mode" element={<ImageDetection />} />
       <Route path="music" element={<MusicDetection />} />
+      <Route path="navigation" element={<OutdoorNavigation />} />
       <Route path="chatbot" element={<ChatBot />} />
       <Route path="news" element={<News />} />
       <Route path="*" element={<NotFound />} />

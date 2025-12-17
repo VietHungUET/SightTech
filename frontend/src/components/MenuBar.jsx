@@ -10,6 +10,7 @@ import {
     SmartToyOutlined,
     NewspaperOutlined,
     VisibilityOutlined,
+    ExploreOutlined,
 } from "@mui/icons-material";
 import { Tooltip } from "@mui/material";
 
@@ -20,6 +21,7 @@ export default function MenuBar() {
         { to: "/image/text", icon: <ArticleOutlined fontSize="large" />, label: "Text" },
         { to: "/image/currency", icon: <MonetizationOnOutlined fontSize="large" />, label: "Currency" },
         { to: "/image/barcode", icon: <QrCodeScannerOutlined fontSize="large" />, label: "Barcode" },
+        { to: "/navigation", icon: <ExploreOutlined fontSize="large" />, label: "Navigation" },
         { to: "/music", icon: <MusicNoteOutlined fontSize="large" />, label: "Music" },
         { to: "/chatbot", icon: <SmartToyOutlined fontSize="large" />, label: "Chat" },
         { to: "/news", icon: <NewspaperOutlined fontSize="large" />, label: "News" },
