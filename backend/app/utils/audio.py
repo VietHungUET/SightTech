@@ -40,20 +40,16 @@ raw_feature_labels = OrderedDict({
         "product", "brand", "logo", "item", "product name", "identify product", "check product", 
         "product details", "product information"
     ],
-    "Distance": [
-        "distance", "range", "how far", "measure", "long", "distance to", "how far is", 
-        "how much is the distance", "measure distance", "range of"
-    ],
-    "Face": [
-        "face", "who is this", "person", "identify person", "recognize face", "face recognition", 
-        "who is the person", "show me the face"
+    "RealTime": [
+        "realtime", "real-time", "real time", "live", "continuous", "stream", "live description",
+        "continuous description", "streaming", "ongoing"
     ],
     "Music": [
         "music", "track", "what's playing", "music track", "listen", "audio"
     ],
     "Play": [
         "play", "begin", "launch", "initiate", "start playback", "begin function", 
-        "start process", "launch task", "begin operation"
+        "start process", "launch task", "begin operation", "start"
     ],
     "Stop": [
         "stop", "pause", "halt", "end", "pause function", "halt process", "cancel", 
