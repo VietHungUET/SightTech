@@ -25,7 +25,7 @@ def detect_currency(image_bytes):
         # Prepare Gemini API request - using thinking model for better accuracy
         api_url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.5-pro:generateContent?key={gemini_api_key}"
+            f"gemini-2.5-flash:generateContent?key={gemini_api_key}"
         )
         
         # Construct detailed prompt with visual descriptions to avoid confusion
