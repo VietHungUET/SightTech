@@ -1,4 +1,5 @@
 import WebCam from "../components/WebCam.jsx";
+import ProductInfoCard from "../components/ProductInfoCard.jsx";
 import "./ImageDetection.css";
 import { IconButton, Tooltip } from "@mui/material";
 import {
@@ -360,47 +361,55 @@ export default function ImageDetection() {
           const barcodeResult = await userAPI.postBarcodeScan(formData);
           const data = barcodeResult?.data ?? {};
 
-          let displayText = "";
           let speechContent = "";
 
           if (data.status === "success" && data.product) {
             const product = data.product;
-            const lines = [];
+
+            // Format nutrition data for display
+            const formattedProduct = { ...product };
+            if (product.nutrition) {
+              const n = product.nutrition;
+              const formattedNutrition = {};
+              if (n.energy_kcal) formattedNutrition["Energy"] = `${parseFloat(n.energy_kcal).toFixed(1)} kcal/100g`;
+              if (n.proteins) formattedNutrition["Protein"] = `${parseFloat(n.proteins).toFixed(1)} g/100g`;
+              if (n.carbohydrates) formattedNutrition["Carbs"] = `${parseFloat(n.carbohydrates).toFixed(1)} g/100g`;
+              if (n.fat) formattedNutrition["Fat"] = `${parseFloat(n.fat).toFixed(1)} g/100g`;
+
+              // Add any other fields that might be present
+              Object.keys(n).forEach(key => {
+                if (!['energy_kcal', 'proteins', 'carbohydrates', 'fat'].includes(key)) {
+                  formattedNutrition[key] = n[key];
+                }
+              });
+              formattedProduct.nutrition = formattedNutrition;
+            }
+
+            setProductInfo(formattedProduct);
+            setReply(""); // Clear text reply as we show the card
 
             if (product.brand) {
-              lines.push(`${product.name} - ${product.brand}`);
               speechContent = `This is ${product.name} by ${product.brand}.`;
             } else {
-              lines.push(product.name);
               speechContent = `This is ${product.name}.`;
             }
 
-            if (product.type) {
-              lines.push(`Type: ${product.type}`);
-            }
-
             if (product.nutrition) {
-              lines.push("");
-              lines.push("Nutrition Facts:");
               const n = product.nutrition;
-              if (n.energy_kcal) lines.push(`Energy: ${parseFloat(n.energy_kcal).toFixed(1)} kcal/100g`);
-              if (n.proteins) lines.push(`Protein: ${parseFloat(n.proteins).toFixed(1)} g/100g`);
-              if (n.carbohydrates) lines.push(`Carbs: ${parseFloat(n.carbohydrates).toFixed(1)} g/100g`);
-              if (n.fat) lines.push(`Fat: ${parseFloat(n.fat).toFixed(1)} g/100g`);
-
               speechContent += ` Nutrition facts: Energy ${parseFloat(n.energy_kcal || 0).toFixed(0)} kilocalories, Protein ${parseFloat(n.proteins || 0).toFixed(1)} grams, Carbs ${parseFloat(n.carbohydrates || 0).toFixed(1)} grams, Fat ${parseFloat(n.fat || 0).toFixed(1)} grams per 100 grams.`;
             }
-
-            displayText = lines.join("\n");
           } else if (data.status === "partial") {
-            displayText = "Barcode detected but product not found in database.";
-            speechContent = displayText;
+            const msg = "Barcode detected but product not found in database.";
+            setReply(msg);
+            setProductInfo(null);
+            speechContent = msg;
           } else {
-            displayText = "No barcode detected. Please try again with better lighting.";
-            speechContent = displayText;
+            const msg = "No barcode detected. Please try again with better lighting.";
+            setReply(msg);
+            setProductInfo(null);
+            speechContent = msg;
           }
 
-          setReply(displayText);
           speech(speechContent);
           break;
         }
@@ -608,35 +617,7 @@ export default function ImageDetection() {
 
   const replyMessage = realtimeDescription || reply || (isProcessing ? "Processing..." : "Ready when you are.");
 
-  // Render product info if available
-  const renderProductInfo = (product) => {
-    if (!product) return null;
-    return (
-      <div className="product-info-details">
-        {Object.entries(product).map(([key, value]) => {
-          if (!value) return null;
-          // Render nutrition as a list if it's an object
-          if (key === "nutrition" && typeof value === "object") {
-            return (
-              <div key={key}>
-                <strong>Nutrition:</strong>
-                <ul>
-                  {Object.entries(value).map(([nutriKey, nutriVal]) => (
-                    <li key={nutriKey}><strong>{nutriKey.replace(/_/g, ' ')}:</strong> {nutriVal}</li>
-                  ))}
-                </ul>
-              </div>
-            );
-          }
-          return (
-            <div key={key}>
-              <strong>{key.replace(/_/g, ' ')}:</strong> {value}
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
+
 
   return (
     <main
@@ -748,9 +729,7 @@ export default function ImageDetection() {
             {replyMessage}
             {productInfo && (
               <div className="product-info-section">
-                <hr />
-                <h4>Product Details</h4>
-                {renderProductInfo(productInfo)}
+                <ProductInfoCard product={productInfo} />
               </div>
             )}
           </output>
