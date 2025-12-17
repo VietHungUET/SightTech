@@ -1,6 +1,6 @@
 import WebCam from "../components/WebCam.jsx";
 import "./ImageDetection.css";
-import { IconButton, Tooltip } from "@mui/material";
+import { IconButton, Tooltip, Chip } from "@mui/material";
 import {
   KeyboardVoice,
   PhotoCamera,
@@ -37,24 +37,72 @@ export default function ImageDetection() {
   const navigate = useNavigate();
 
   const webcamRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
   const canvasRef = useRef(null);
   const lastScannedTime = useRef(0);
   const isProcessingRef = useRef(false);
-  const isVoiceActiveRef = useRef(false);
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const frameIntervalRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const isMountedRef = useRef(true);
+  const restartTimeoutRef = useRef(null);
+  const isSpeakingRef = useRef(false);
 
   // Initialize detection type from URL parameter
   const initialType = mode && modeToType[mode.toLowerCase()] ? modeToType[mode.toLowerCase()] : "Object";
   const [detectionType, setDetectionType] = useState(initialType);
   const [reply, setReply] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRealtimeActive, setIsRealtimeActive] = useState(false);
   const [realtimeDescription, setRealtimeDescription] = useState("");
+  const [isVoiceCommandActive, setIsVoiceCommandActive] = useState(false);
+
+  // Voice Recognition Helper Functions
+  const startVoiceRecognition = useCallback(() => {
+    if (!recognitionRef.current || recognitionRef.current.isActive || !isMountedRef.current || isSpeakingRef.current) return;
+
+    try {
+      recognitionRef.current.start();
+      recognitionRef.current.isActive = true;
+      setIsVoiceCommandActive(true);
+      console.log('Voice recognition started');
+    } catch (e) {
+      if (e.name === 'InvalidStateError') {
+        recognitionRef.current.isActive = true;
+        setIsVoiceCommandActive(true);
+      }
+    }
+  }, []);
+
+  const stopVoiceRecognition = useCallback(() => {
+    if (!recognitionRef.current || !recognitionRef.current.isActive) return;
+
+    try {
+      recognitionRef.current.stop();
+      recognitionRef.current.isActive = false;
+      setIsVoiceCommandActive(false);
+    } catch (e) {
+      console.error('Failed to stop voice recognition:', e);
+    }
+  }, []);
+
+  const speakWithPause = useCallback(async (text) => {
+    isSpeakingRef.current = true;
+    stopVoiceRecognition();
+
+    try {
+      await speech(text);
+    } catch (error) {
+      console.error('Speech error:', error);
+    } finally {
+      setTimeout(() => {
+        isSpeakingRef.current = false;
+        if (isMountedRef.current) {
+          startVoiceRecognition();
+        }
+      }, 500);
+    }
+  }, [startVoiceRecognition, stopVoiceRecognition]);
 
   // Sync detection type with URL parameter
   useEffect(() => {
@@ -433,9 +481,207 @@ export default function ImageDetection() {
     }
   }, [detectionType, isProcessing]);
 
+  // Initialize Voice Recognition on mount
   useEffect(() => {
-    speech("Image detection ready. Use the list to switch modes or give a voice command.");
-  }, []);
+    isMountedRef.current = true;
+    const introduction = `Image detection ready. Current mode: ${detectionType}. Say 'take snapshot' to capture, or 'switch to' followed by object, currency, barcode, or text to change modes.`;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      recognition.isActive = false;
+
+      recognition.onresult = (event) => {
+        if (isSpeakingRef.current) {
+          console.log('Ignoring voice command while speaking');
+          return;
+        }
+
+        const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+        console.log('Voice command received:', transcript);
+
+        let commandRecognized = false;
+
+        // Capture commands
+        if (transcript.includes('take snapshot') || 
+            transcript.includes('capture') || 
+            transcript.includes('take picture') ||
+            transcript.includes('take photo') ||
+            transcript.includes('snap')) {
+          console.log('Capture command detected');
+          if (!isProcessingRef.current) {
+            speakWithPause('Taking snapshot');
+            capture("voice");
+          }
+          commandRecognized = true;
+        }
+        // Switch mode commands
+        else if (transcript.includes('switch to') || transcript.includes('open') || transcript.includes('go to') || transcript.includes('i want to use')) {
+          if (transcript.includes('object')) {
+            navigate('/image/object');
+            commandRecognized = true;
+          } else if (transcript.includes('currency') || transcript.includes('money')) {
+            navigate('/image/currency');
+            commandRecognized = true;
+          } else if (transcript.includes('barcode') || transcript.includes('product')) {
+            navigate('/image/barcode');
+            commandRecognized = true;
+          } else if (transcript.includes('text') || transcript.includes('document')) {
+            navigate('/image/text');
+            commandRecognized = true;
+          } else if (transcript.includes('news')) {
+            navigate('/news');
+            commandRecognized = true;
+          } else if (transcript.includes('chatbot') || transcript.includes('chat bot') || transcript.includes('chat')) {
+            navigate('/chatbot');
+            commandRecognized = true;
+          } else if (transcript.includes('navigation') || transcript.includes('navigate')) {
+            navigate('/navigation');
+            commandRecognized = true;
+          } else if (transcript.includes('music')) {
+            navigate('/music');
+            commandRecognized = true;
+          }
+        }
+        // Real-time control (Object mode only)
+        else if (detectionType === "Object") {
+          // Start real-time commands
+          if ((transcript.includes('start') || 
+               transcript.includes('play') || 
+               transcript.includes('begin') || 
+               transcript.includes('launch') || 
+               transcript.includes('activate') || 
+               transcript.includes('turn on') || 
+               transcript.includes('enable')) && 
+              (transcript.includes('real') || 
+               transcript.includes('live') || 
+               transcript.includes('realtime') || 
+               transcript.includes('real-time') || 
+               transcript.includes('real time') || 
+               transcript.includes('continuous') || 
+               transcript.includes('stream'))) {
+            console.log('Start real-time command detected');
+            if (!isRealtimeActive) {
+              speakWithPause('Starting real-time description');
+              handleRealtimeToggle();
+            }
+            commandRecognized = true;
+          } 
+          // Stop real-time commands
+          else if ((transcript.includes('stop') || 
+                    transcript.includes('pause') || 
+                    transcript.includes('end') || 
+                    transcript.includes('halt') || 
+                    transcript.includes('deactivate') || 
+                    transcript.includes('turn off') || 
+                    transcript.includes('disable') || 
+                    transcript.includes('cancel')) && 
+                   (transcript.includes('real') || 
+                    transcript.includes('live') || 
+                    transcript.includes('realtime') || 
+                    transcript.includes('real-time') || 
+                    transcript.includes('real time') || 
+                    transcript.includes('continuous') || 
+                    transcript.includes('stream'))) {
+            console.log('Stop real-time command detected');
+            if (isRealtimeActive) {
+              speakWithPause('Stopping real-time description');
+              handleRealtimeToggle();
+            }
+            commandRecognized = true;
+          }
+        }
+
+        // If no command was recognized
+        if (!commandRecognized) {
+          console.log('Command not recognized:', transcript);
+          speakWithPause("Sorry, I don't understand");
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        recognition.isActive = false;
+        setIsVoiceCommandActive(false);
+
+        if (restartTimeoutRef.current) {
+          clearTimeout(restartTimeoutRef.current);
+        }
+
+        if (event.error === 'aborted' || event.error === 'audio-capture' || !isMountedRef.current) {
+          return;
+        }
+
+        restartTimeoutRef.current = setTimeout(() => {
+          if (!recognition.isActive && isMountedRef.current) {
+            startVoiceRecognition();
+          }
+        }, 1000);
+      };
+
+      recognition.onend = () => {
+        console.log('Voice recognition ended');
+        recognition.isActive = false;
+        setIsVoiceCommandActive(false);
+
+        if (restartTimeoutRef.current) {
+          clearTimeout(restartTimeoutRef.current);
+        }
+
+        if (!isMountedRef.current) {
+          return;
+        }
+
+        restartTimeoutRef.current = setTimeout(() => {
+          if (!recognition.isActive && isMountedRef.current) {
+            startVoiceRecognition();
+          }
+        }, 5000);
+      };
+
+      recognition.onstart = () => {
+        recognition.isActive = true;
+        setIsVoiceCommandActive(true);
+      };
+
+      recognitionRef.current = recognition;
+
+      // Start voice recognition after a longer delay to avoid picking up system speech
+      setTimeout(() => {
+        isSpeakingRef.current = false;
+        startVoiceRecognition();
+      }, 3000);
+    } else {
+      // No speech when SpeechRecognition not supported
+    }
+
+    return () => {
+      console.log('Component unmounting, cleaning up...');
+      isMountedRef.current = false;
+
+      if (restartTimeoutRef.current) {
+        clearTimeout(restartTimeoutRef.current);
+      }
+
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.onresult = null;
+          recognitionRef.current.onerror = null;
+          recognitionRef.current.onend = null;
+          recognitionRef.current.onstart = null;
+          recognitionRef.current.abort();
+          recognitionRef.current = null;
+        } catch (e) {
+          console.log('Error stopping recognition:', e);
+        }
+      }
+
+      setIsVoiceCommandActive(false);
+    };
+  }, [detectionType, startVoiceRecognition, speakWithPause, navigate, isRealtimeActive, handleRealtimeToggle, capture]);
 
   useEffect(() => {
     setReply("");
@@ -507,103 +753,6 @@ export default function ImageDetection() {
       }
     };
   }, [detectionType, capture]);
-
-  const processVoiceCommand = useCallback(async (commandData) => {
-    if (!commandData) {
-      speech("I could not understand the command.");
-      return;
-    }
-
-    const transcriptText = commandData?.transcript?.transcript;
-    if (transcriptText) {
-      setReply(transcriptText);
-    }
-
-    if (commandData.intent === "action" && commandData.command === "Capture") {
-      speech("Capture command received.");
-      await capture("voice");
-      return;
-    }
-
-    if (transcriptText) {
-      speech(`You said: ${transcriptText}.`);
-    } else {
-      speech("Command received but no actionable task was detected.");
-    }
-  }, [capture]);
-
-  const sendAudioCommand = useCallback(async (audioBlob) => {
-    const formData = new FormData();
-    const featureKey = detectionType === "Barcode" ? "Product" : detectionType;
-    formData.append("file", audioBlob, "command.webm");
-    formData.append("current_feature", featureKey);
-
-    try {
-      const response = await userAPI.postVoiceCommand(formData);
-      await processVoiceCommand(response.data);
-    } catch (error) {
-      console.error("Voice command error", error);
-      speech("Sorry, I was not able to process that voice command.");
-    }
-  }, [detectionType, processVoiceCommand]);
-
-  const stopRecording = useCallback(() => {
-    isVoiceActiveRef.current = false;
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-    const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state !== "inactive") {
-      recorder.stop();
-    }
-    setIsRecording(false);
-  }, []);
-
-  const startRecording = useCallback(async () => {
-    try {
-      isVoiceActiveRef.current = true;
-      setIsRecording(true);
-      await speech("Listening for command. Say 'Take snapshot' to capture the current frame.");
-
-      if (!isVoiceActiveRef.current) return;
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-      audioChunksRef.current = [];
-
-      recorder.addEventListener("dataavailable", (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      });
-
-      recorder.addEventListener("stop", async () => {
-        stream.getTracks().forEach((track) => track.stop());
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        audioChunksRef.current = [];
-
-        if (audioBlob.size > 0) {
-          await sendAudioCommand(audioBlob);
-        }
-      });
-
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-    } catch (error) {
-      console.error("Microphone access error", error);
-      speech("Unable to access the microphone. Please check permissions.");
-      setIsRecording(false);
-      isVoiceActiveRef.current = false;
-    }
-  }, [sendAudioCommand]);
-
-  const handleVoiceToggle = useCallback(() => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  }, [isRecording, startRecording, stopRecording]);
 
   const replyMessage = realtimeDescription || reply || (isProcessing ? "Processing..." : "Ready when you are.");
 
@@ -679,18 +828,30 @@ export default function ImageDetection() {
             )}
 
             <div className="btn-wrapper">
-              <Tooltip title={isRecording ? "Stop Listening" : "Voice Command"} arrow>
+              <Tooltip title={isVoiceCommandActive ? "Voice recognition active" : "Click to start voice recognition"} arrow>
                 <IconButton
-                  className={`action-icon-btn voice-btn ${isRecording ? 'active' : ''}`}
-                  onClick={handleVoiceToggle}
-                  aria-label={isRecording ? "Stop listening" : "Start voice command"}
-                  aria-pressed={isRecording}
+                  className={`action-icon-btn voice-btn ${isVoiceCommandActive ? 'active' : ''}`}
+                  disabled={isVoiceCommandActive}
+                  onClick={() => {
+                    if (!isVoiceCommandActive) {
+                      // Clear any pending restart timeout
+                      if (restartTimeoutRef.current) {
+                        clearTimeout(restartTimeoutRef.current);
+                        restartTimeoutRef.current = null;
+                      }
+                      // Start voice recognition immediately
+                      startVoiceRecognition();
+                    }
+                  }}
+                  aria-label={isVoiceCommandActive ? "Voice command active" : "Click to activate voice command"}
                   size="large"
                 >
-                  {isRecording ? <StopCircle /> : <KeyboardVoice />}
+                  {isVoiceCommandActive ? <StopCircle /> : <KeyboardVoice />}
                 </IconButton>
               </Tooltip>
-              <span className="btn-label">Voice</span>
+              <span className="btn-label">
+                {isProcessing ? "Processing" : (isVoiceCommandActive ? "Listening" : "Voice")}
+              </span>
             </div>
           </div>
         </section>

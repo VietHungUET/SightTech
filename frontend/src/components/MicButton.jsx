@@ -7,9 +7,9 @@ import "./MicButton.css";
 
 // VAD Constants
 const CYCLE_DURATION = 6000; // 5 seconds recording cycle
-const DECIBEL_THRESHOLD = 15; // Minimum decibel to detect sound (noise rejection)
+const DECIBEL_THRESHOLD = 10; // Minimum decibel to detect sound (noise rejection)
 const SPEECH_MIN_DURATION = 500; // Minimum 500ms for valid speech
-const TTS_DEBOUNCE_DELAY = 1500; // Wait 1.5s after TTS before resuming cycles
+const TTS_DEBOUNCE_DELAY = 1000; // Wait 1.5s after TTS before resuming cycles
 
 // Route mapping for navigation
 // Keys MUST match backend's FEATURE_NAMES keys (Object, Currency, Music, etc.)
