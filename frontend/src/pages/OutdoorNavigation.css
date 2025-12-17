@@ -1,0 +1,159 @@
+/* Reuse most styles from ImageDetection.css */
+@import './ImageDetection.css';
+
+/* Ensure outdoor navigation container has same styles as image detection */
+.outdoor-navigation-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+  max-height: calc(100vh - 120px);
+  background-color: #ffffff;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Navigation Camera */
+.navigation-camera {
+  position: relative;
+  overflow: hidden;
+}
+
+.test-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Arrow Overlays */
+.turn-arrow-overlay {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.shift-arrow-overlay {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.shift-arrow-overlay.shift-left {
+  right: -60px;
+}
+
+.shift-arrow-overlay.shift-right {
+  left: -60px;
+}
+
+/* Status Badge */
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 12px;
+  text-transform: uppercase;
+}
+
+.status-badge.connected {
+  background-color: #4caf50;
+  color: white;
+}
+
+.status-badge.disconnected {
+  background-color: #757575;
+  color: white;
+}
+
+.status-badge.error {
+  background-color: #f44336;
+  color: white;
+}
+
+/* Navigation Button Active State */
+.navigation-btn {
+  background-color: #098D71 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(9, 141, 113, 0.3) !important;
+}
+
+.navigation-btn:hover:not(:disabled) {
+  background-color: #067a62 !important;
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(9, 141, 113, 0.4) !important;
+}
+
+.navigation-btn.active {
+  background-color: #f44336 !important;
+  border-color: #f44336 !important;
+  animation: pulse-recording 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-recording {
+  0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4); }
+  70% { box-shadow: 0 0 0 12px rgba(244, 67, 54, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+}
+
+.voice-btn {
+  background-color: #ffffff !important;
+  color: #098D71 !important;
+  border: 3px solid #098D71 !important;
+  box-shadow: 0 2px 8px rgba(9, 141, 113, 0.15) !important;
+}
+
+.voice-btn:hover {
+  background-color: #e8f5f1 !important;
+  transform: scale(1.05);
+}
+
+.voice-btn.active {
+  background-color: #dc3545 !important;
+  border-color: #dc3545 !important;
+  color: #ffffff !important;
+  animation: pulse-recording 1.5s infinite;
+}
+
+/* Navigation Info Panel */
+.navigation-info {
+  padding: 1rem 1.5rem;
+  margin: 0;
+  background-color: #f9fdfb;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 1rem;
+}
+
+.info-row:last-child {
+  margin-bottom: 0;
+}
+
+.info-label {
+  font-weight: 600;
+  color: #666;
+}
+
+.info-value {
+  font-weight: 500;
+  color: #1a1a1a;
+}

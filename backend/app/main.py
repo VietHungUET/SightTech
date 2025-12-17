@@ -45,7 +45,7 @@ from .services.all_task.pipeline import get_llm_response
 from .services.barcode_scanning import BarcodeProcessingError, BarcodeScannerService
 from .services.music_detection.pipeline import execute_music_detection
 from .utils.formatter import format_audio_response
-
+from .websocket_manager import manager
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -66,7 +66,7 @@ print(f"All Models loaded in {time.time() - start:.2f} seconds", file=sys.stderr
 app = FastAPI()
 
 # Import WebSocket handlers for real-time description
-from .services.stream_video.websocket_server import (
+from app.services.stream_video.websocket_server import (
     websocket_realtime_description,
     start_realtime_description,
     stop_realtime_description,
@@ -74,12 +74,22 @@ from .services.stream_video.websocket_server import (
     stream_descriptions_to_clients
 )
 
+# Import WebSocket handlers for outdoor navigation
+from app.services.outdoor_navigation.websocket_server import (
+    websocket_outdoor_navigation,
+    start_outdoor_navigation,
+    stop_outdoor_navigation,
+    get_navigation_status,
+    stream_navigation_to_clients
+)
+
 # Start background task for streaming descriptions
 @app.on_event("startup")
 async def startup_event():
-    """Start background task when FastAPI starts"""
+    """Start background tasks when FastAPI starts"""
     asyncio.create_task(stream_descriptions_to_clients())
-    print("[STARTUP] WebSocket description streaming task started")
+    asyncio.create_task(stream_navigation_to_clients())
+    print("[STARTUP] WebSocket streaming tasks started")
 
 # Configure CORS for WebSocket
 app.add_middleware(
@@ -715,12 +725,37 @@ async def description_status():
 
 
 # ============================================================================
+# Outdoor Navigation WebSocket Endpoints
+# ============================================================================
+
+@app.websocket("/ws/outdoor-navigation")
+async def outdoor_navigation_ws(websocket: WebSocket):
+    """
+    WebSocket endpoint for outdoor navigation.
+    Frontend connects here to receive continuous navigation guidance.
+    """
+    await websocket_outdoor_navigation(websocket)
 
 
-# @app.get("/download_pdf")
-# async def download_pdf(pdf_path: str):
-#     return FileResponse(pdf_path, media_type="application/pdf", filename="document.pdf")
+@app.post("/outdoor-navigation/start")
+async def start_navigation(use_camera: bool = True, video_path: str = None):
+    """Start outdoor navigation service"""
+    return await start_outdoor_navigation(use_camera, video_path)
 
+
+@app.post("/outdoor-navigation/stop")
+async def stop_navigation():
+    """Stop outdoor navigation service"""
+    return await stop_outdoor_navigation()
+
+
+@app.get("/outdoor-navigation/status")
+async def navigation_status():
+    """Get status of outdoor navigation service"""
+    return await get_navigation_status()
+
+
+# ============================================================================
 
 @app.get("/download_audio")
 async def download_audio(audio_path: str):
