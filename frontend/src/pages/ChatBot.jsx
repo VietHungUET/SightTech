@@ -1,4 +1,5 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Container, Card, Chip } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
 import ChatMessage from '../components/chat/ChatMessage';
@@ -7,8 +8,19 @@ import userAPI from '../utils/userAPI';
 import './ChatBot.css';
 
 export default function ChatBot() {
+    const navigate = useNavigate();
     const chatContainerRef = useRef(null);
+    const recognitionRef = useRef(null);
+    const isMountedRef = useRef(true);
+    const restartTimeoutRef = useRef(null);
+    const isSpeakingInternalRef = useRef(false);
+    const pendingTranscriptRef = useRef('');
+    const sendMessageTimeoutRef = useRef(null);
+    const inactivityTimeoutRef = useRef(null);      // Auto-stop if no speech
+    const lastResultTimeRef = useRef(null);         // Track last speech result time
+    
     const [isListening, setIsListening] = useState(false);
+    const [isVoiceCommandActive, setIsVoiceCommandActive] = useState(false);
     
     // Chat state
     const [messages, setMessages] = useState([]);
@@ -19,9 +31,63 @@ export default function ChatBot() {
     const [voices, setVoices] = useState([]);
     const utteranceRef = useRef(null);
 
+    // Voice Recognition Helper Functions
+    const startVoiceRecognition = useCallback(() => {
+        if (!recognitionRef.current || recognitionRef.current.isActive || !isMountedRef.current || isSpeakingInternalRef.current) return;
+
+        try {
+            recognitionRef.current.start();
+            recognitionRef.current.isActive = true;
+            setIsVoiceCommandActive(true);
+            lastResultTimeRef.current = Date.now();
+            console.log('Voice recognition started');
+
+            // Auto-stop after 5s if no speech result
+            if (inactivityTimeoutRef.current) {
+                clearTimeout(inactivityTimeoutRef.current);
+            }
+            inactivityTimeoutRef.current = setTimeout(() => {
+                if (!recognitionRef.current || !recognitionRef.current.isActive) return;
+
+                const now = Date.now();
+                const last = lastResultTimeRef.current || 0;
+                if (now - last >= 5000) {
+                    console.log('⏹️ No speech detected within timeout, stopping voice recognition');
+                    try {
+                        recognitionRef.current.stop();
+                    } catch (e) {
+                        console.error('Failed to stop recognition on inactivity:', e);
+                    }
+                }
+            }, 4000);
+        } catch (e) {
+            if (e.name === 'InvalidStateError') {
+                recognitionRef.current.isActive = true;
+                setIsVoiceCommandActive(true);
+            }
+        }
+    }, []);
+
+    const stopVoiceRecognition = useCallback(() => {
+        if (!recognitionRef.current || !recognitionRef.current.isActive) return;
+
+        try {
+            recognitionRef.current.stop();
+            recognitionRef.current.isActive = false;
+            setIsVoiceCommandActive(false);
+
+            if (inactivityTimeoutRef.current) {
+                clearTimeout(inactivityTimeoutRef.current);
+                inactivityTimeoutRef.current = null;
+            }
+        } catch (e) {
+            console.error('Failed to stop voice recognition:', e);
+        }
+    }, []);
+
     // Load voices on mount
     useEffect(() => {
-        const introduction = "This is Chatbot mode";
+        const introduction = "This is Chatbot mode. Press the Space key to start a voice command.";
 
         const loadVoices = () => {
             const availableVoices = window.speechSynthesis.getVoices();
@@ -43,10 +109,176 @@ export default function ChatBot() {
         };
     }, []);
 
+    // Initialize Voice Recognition
+    useEffect(() => {
+        isMountedRef.current = true;
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            recognition.isActive = false;
+
+            recognition.onresult = (event) => {
+                if (isSpeakingInternalRef.current) {
+                    console.log('Ignoring voice command while speaking');
+                    return;
+                }
+
+                lastResultTimeRef.current = Date.now();
+
+                const transcript = event.results[event.results.length - 1][0].transcript.trim();
+                console.log('Voice command received:', transcript);
+
+                const lowerTranscript = transcript.toLowerCase();
+                let isNavigationCommand = false;
+
+                // Check for navigation commands - execute immediately
+                if (lowerTranscript.includes('switch to') || lowerTranscript.includes('open') || lowerTranscript.includes('go to') || lowerTranscript.includes('i want to use')) {
+                    // Clear any pending message
+                    if (sendMessageTimeoutRef.current) {
+                        clearTimeout(sendMessageTimeoutRef.current);
+                        sendMessageTimeoutRef.current = null;
+                    }
+                    pendingTranscriptRef.current = '';
+
+                    if (lowerTranscript.includes('object')) {
+                        navigate('/image/object');
+                        isNavigationCommand = true;
+                    } else if (lowerTranscript.includes('currency') || lowerTranscript.includes('money')) {
+                        navigate('/image/currency');
+                        isNavigationCommand = true;
+                    } else if (lowerTranscript.includes('barcode') || lowerTranscript.includes('product')) {
+                        navigate('/image/barcode');
+                        isNavigationCommand = true;
+                    } else if (lowerTranscript.includes('text') || lowerTranscript.includes('document')) {
+                        navigate('/image/text');
+                        isNavigationCommand = true;
+                    } else if (lowerTranscript.includes('news')) {
+                        navigate('/news');
+                        isNavigationCommand = true;
+                    } else if (lowerTranscript.includes('music')) {
+                        navigate('/music');
+                        isNavigationCommand = true;
+                    } else if (lowerTranscript.includes('navigation')) {
+                        navigate('/navigation');
+                        isNavigationCommand = true;
+                    } else if (lowerTranscript.includes('home')) {
+                        navigate('/');
+                        isNavigationCommand = true;
+                    }
+                }
+
+                // If not a navigation command, accumulate transcript with debounce
+                if (!isNavigationCommand) {
+                    // Add to pending transcript
+                    if (pendingTranscriptRef.current) {
+                        pendingTranscriptRef.current += ' ' + transcript;
+                    } else {
+                        pendingTranscriptRef.current = transcript;
+                    }
+
+                    console.log('Accumulated transcript:', pendingTranscriptRef.current);
+
+                    // Clear existing timeout
+                    if (sendMessageTimeoutRef.current) {
+                        clearTimeout(sendMessageTimeoutRef.current);
+                    }
+
+                    // Set new timeout to send message after 2.5 seconds of silence
+                    sendMessageTimeoutRef.current = setTimeout(() => {
+                        const messageToSend = pendingTranscriptRef.current.trim();
+                        if (messageToSend) {
+                            console.log('Sending accumulated message:', messageToSend);
+                            sendMessage(messageToSend);
+                        }
+                        pendingTranscriptRef.current = '';
+                        sendMessageTimeoutRef.current = null;
+                    }, 2000);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (event.error === 'no-speech') {
+                    return;
+                }
+                recognition.isActive = false;
+                setIsVoiceCommandActive(false);
+
+                if (restartTimeoutRef.current) {
+                    clearTimeout(restartTimeoutRef.current);
+                }
+            };
+
+            recognition.onend = () => {
+                recognition.isActive = false;
+                setIsVoiceCommandActive(false);
+
+                if (restartTimeoutRef.current) {
+                    clearTimeout(restartTimeoutRef.current);
+                }
+
+                if (!isMountedRef.current) {
+                    return;
+                }
+            };
+
+            recognition.onstart = () => {
+                recognition.isActive = true;
+                setIsVoiceCommandActive(true);
+            };
+
+            recognitionRef.current = recognition;
+        }
+
+        return () => {
+            console.log('Component unmounting, cleaning up...');
+            isMountedRef.current = false;
+
+            if (restartTimeoutRef.current) {
+                clearTimeout(restartTimeoutRef.current);
+            }
+
+            if (inactivityTimeoutRef.current) {
+                clearTimeout(inactivityTimeoutRef.current);
+            }
+
+            if (sendMessageTimeoutRef.current) {
+                clearTimeout(sendMessageTimeoutRef.current);
+            }
+
+            if (recognitionRef.current) {
+                try {
+                    recognitionRef.current.onresult = null;
+                    recognitionRef.current.onerror = null;
+                    recognitionRef.current.onend = null;
+                    recognitionRef.current.onstart = null;
+                    recognitionRef.current.abort();
+                    recognitionRef.current = null;
+                } catch (e) {
+                    console.log('Error stopping recognition:', e);
+                }
+            }
+
+            setIsVoiceCommandActive(false);
+        };
+    }, [navigate, startVoiceRecognition]);
+
     // Text-to-speech function
     const speak = (text, options = {}) => {
+        // Stop voice recognition while speaking
+        isSpeakingInternalRef.current = true;
+        stopVoiceRecognition();
+        
         window.speechSynthesis.cancel();
-        if (!text) return;
+        if (!text) {
+            isSpeakingInternalRef.current = false;
+            if (isMountedRef.current) startVoiceRecognition();
+            return;
+        }
 
         const utterance = new SpeechSynthesisUtterance(text);
         utteranceRef.current = utterance;
@@ -65,8 +297,17 @@ export default function ChatBot() {
         utterance.lang = options.lang || 'en-US';
 
         utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onerror = () => setIsSpeaking(false);
+        utterance.onend = () => {
+            setIsSpeaking(false);
+            // Resume voice recognition after speaking
+            setTimeout(() => {
+                isSpeakingInternalRef.current = false;
+            }, 1000);
+        };
+        utterance.onerror = () => {
+            setIsSpeaking(false);
+            isSpeakingInternalRef.current = false;
+        };
 
         window.speechSynthesis.speak(utterance);
     };
@@ -96,7 +337,8 @@ export default function ChatBot() {
             };
             
             setMessages((prev) => [...prev, botMessage]);
-            speak(botReply, { rate: 1.5 });
+            // Speak a bit slower for better comprehension
+            speak(botReply, { rate: 1.1 });
             
         } catch (error) {
             console.error('Error sending message to chatbot:', error);
@@ -106,7 +348,7 @@ export default function ChatBot() {
                 timestamp: new Date()
             };
             setMessages((prev) => [...prev, errorMessage]);
-            speak('Sorry, something went wrong. Please try again.');
+            speak('Sorry, something went wrong. Please try again.', { rate: 1.1 });
         } finally {
             setLoading(false);
         }
@@ -119,6 +361,44 @@ export default function ChatBot() {
         }
     }, [messages]);
 
+    // Toggle helper so Space và icon mic cùng một logic
+    const toggleVoiceRecognition = useCallback(() => {
+        if (recognitionRef.current && recognitionRef.current.isActive) {
+            stopVoiceRecognition();
+        } else {
+            startVoiceRecognition();
+        }
+    }, [startVoiceRecognition, stopVoiceRecognition]);
+
+    // Keyboard shortcut: Space to toggle voice recognition
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            const target = event.target;
+            const isTypingElement =
+                target.tagName === 'INPUT' ||
+                target.tagName === 'TEXTAREA' ||
+                target.isContentEditable;
+
+            if (isTypingElement) return;
+
+            if (event.code === 'Space' || event.key === ' ') {
+                event.preventDefault();
+
+                if (recognitionRef.current && recognitionRef.current.isActive) {
+                    stopVoiceRecognition();
+                } else {
+                    startVoiceRecognition();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [startVoiceRecognition, stopVoiceRecognition]);
+
     return (
         <Container maxWidth="lg" className="chatbotContainer">
             {/* Header with Title and Status */}
@@ -126,7 +406,7 @@ export default function ChatBot() {
                 <div className="chatbotHeaderRow">
                     <h1 className="chatbotTitle">Chatbot</h1>
                     {/* Status Chip */}
-                    {isListening ? (
+                    {isVoiceCommandActive ? (
                         <Chip
                             icon={<MicIcon />}
                             label="Listening..."
@@ -173,10 +453,9 @@ export default function ChatBot() {
                         ))
                     ) : (
                         <div className="emptyState">
-                            <MicIcon className="emptyStateIcon" />
                             <h2 className="emptyStateTitle">Start a conversation</h2>
                             <p className="emptyStateHint">
-                                Type a message or tap the microphone to speak
+                                Type a message, tap the microphone, or press the Space key to speak
                             </p>
                         </div>
                     )}
@@ -186,8 +465,8 @@ export default function ChatBot() {
                 <ChatInput 
                     onSend={sendMessage} 
                     loading={loading}
-                    onRecordingChange={setIsListening}
-                    onStopSpeaking={stopSpeaking}
+                    isListening={isVoiceCommandActive}
+                    onToggleMic={toggleVoiceRecognition}
                 />
             </Card>
         </Container>

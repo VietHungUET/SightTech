@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { IconButton, Tooltip } from "@mui/material";
 import { KeyboardVoice, StopCircle, Explore, PlayArrow, Stop } from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
 
 import WebCam from "../components/WebCam.jsx";
 import TurnArrow from "../components/TurnArrow.jsx";
@@ -14,17 +15,20 @@ const WS_BASE_URL = "ws://localhost:8000";
 const USE_TEST_VIDEO = true; // Uncomment this line and comment above to use test video
 
 export default function OutdoorNavigation() {
+  const navigate = useNavigate();
   const lastSpokenGuidanceRef = useRef("");
   const navigationStartTimeRef = useRef(null);
   const webcamRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
   const wsRef = useRef(null);
-  const isVoiceActiveRef = useRef(false);
+  const recognitionRef = useRef(null);
+  const isMountedRef = useRef(true);
+  const isSpeakingRef = useRef(false);
+  const noSpeechTimeoutRef = useRef(null);
+  const hasReceivedResultRef = useRef(false);
   const frameSendIntervalRef = useRef(null);
   const videoRef = useRef(null);
 
-  const [isRecording, setIsRecording] = useState(false);
+  const [isVoiceCommandActive, setIsVoiceCommandActive] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [navigationData, setNavigationData] = useState({
@@ -165,54 +169,220 @@ export default function OutdoorNavigation() {
     disconnectWebSocket();
   }, [disconnectWebSocket]);
 
-  const stopRecording = useCallback(() => {
-    isVoiceActiveRef.current = false;
-    window.speechSynthesis?.cancel();
-    if (mediaRecorderRef.current?.state !== "inactive") {
-      mediaRecorderRef.current?.stop();
+  // Voice command (push-to-talk) using SpeechRecognition
+  const stopVoiceRecognition = useCallback(() => {
+    if (noSpeechTimeoutRef.current) {
+      clearTimeout(noSpeechTimeoutRef.current);
+      noSpeechTimeoutRef.current = null;
     }
-    setIsRecording(false);
-  }, []);
 
-  const startRecording = useCallback(async () => {
+    if (!recognitionRef.current || !recognitionRef.current.isActive) return;
+
     try {
-      isVoiceActiveRef.current = true;
-      setIsRecording(true);
-      await speech("Listening for navigation command.");
-      if (!isVoiceActiveRef.current) return;
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-      audioChunksRef.current = [];
-
-      recorder.addEventListener("dataavailable", (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      });
-
-      recorder.addEventListener("stop", () => {
-        stream.getTracks().forEach(track => track.stop());
-        audioChunksRef.current = [];
-      });
-
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-    } catch (error) {
-      speech("Unable to access the microphone.");
-      setIsRecording(false);
-      isVoiceActiveRef.current = false;
+      recognitionRef.current.stop();
+      recognitionRef.current.isActive = false;
+      setIsVoiceCommandActive(false);
+      console.log("OutdoorNavigation voice recognition stopped");
+    } catch (e) {
+      console.error("Failed to stop voice recognition:", e);
     }
   }, []);
 
-  const handleVoiceToggle = useCallback(() => {
-    isRecording ? stopRecording() : startRecording();
-  }, [isRecording, startRecording, stopRecording]);
+  const startVoiceRecognition = useCallback(() => {
+    if (!recognitionRef.current || recognitionRef.current.isActive || !isMountedRef.current) {
+      return;
+    }
+
+    try {
+      // Stop any ongoing speech guidance so mic can listen
+      window.speechSynthesis?.cancel();
+
+      hasReceivedResultRef.current = false;
+
+      if (noSpeechTimeoutRef.current) {
+        clearTimeout(noSpeechTimeoutRef.current);
+      }
+
+      recognitionRef.current.start();
+      recognitionRef.current.isActive = true;
+      setIsVoiceCommandActive(true);
+      speech("Listening for commandss");
+      console.log("OutdoorNavigation voice recognition started ");
+
+      // Auto-stop if user doesn't say anything within 5 seconds
+      noSpeechTimeoutRef.current = setTimeout(() => {
+        if (!hasReceivedResultRef.current && recognitionRef.current?.isActive) {
+          console.log("No speech detected, stopping OutdoorNavigation mic");
+          stopVoiceRecognition();
+        }
+      }, 5000);
+    } catch (e) {
+      if (e.name === "InvalidStateError") {
+        recognitionRef.current.isActive = true;
+        setIsVoiceCommandActive(true);
+      } else {
+        console.error("Failed to start voice recognition:", e);
+      }
+    }
+  }, [stopVoiceRecognition]);
+
+  const toggleVoiceCommand = useCallback(() => {
+    if (isVoiceCommandActive) {
+      stopVoiceRecognition();
+    } else {
+      startVoiceRecognition();
+    }
+  }, [isVoiceCommandActive, startVoiceRecognition, stopVoiceRecognition]);
 
   const handleNavigationToggle = useCallback(() => {
     isNavigating ? stopNavigation() : startNavigation();
   }, [isNavigating, startNavigation, stopNavigation]);
 
+  // Initialize SpeechRecognition and voice commands
   useEffect(() => {
-    speech("Outdoor navigation ready. Press start to begin.");
+    isMountedRef.current = true;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = "en-US";
+      recognition.isActive = false;
+
+      recognition.onstart = () => {
+        recognition.isActive = true;
+        setIsVoiceCommandActive(true);
+      };
+
+      recognition.onresult = (event) => {
+        hasReceivedResultRef.current = true;
+
+        const transcriptRaw = event.results[event.results.length - 1][0].transcript.trim();
+        const transcript = transcriptRaw.toLowerCase();
+        console.log("OutdoorNavigation voice command received:", transcriptRaw);
+
+        let handled = false;
+
+        // Navigation controls
+        if (
+          transcript.includes("start navigation") ||
+          transcript.includes("begin navigation") ||
+          transcript.includes("start guiding") ||
+          transcript.includes("start guidance") ||
+          transcript.includes("start navigate")
+        ) {
+          if (!isNavigating) {
+            startNavigation();
+          }
+          handled = true;
+        } else if (
+          transcript.includes("stop navigation") ||
+          transcript.includes("end navigation") ||
+          transcript.includes("stop guiding") ||
+          transcript.includes("stop guidance") ||
+          transcript.includes("stop navigate")
+        ) {
+          if (isNavigating) {
+            stopNavigation();
+          }
+          handled = true;
+        }
+
+        // Cross-feature navigation (same set as Image Detection)
+        if (
+          transcript.includes("switch to") ||
+          transcript.includes("open") ||
+          transcript.includes("go to") ||
+          transcript.includes("i want to use")
+        ) {
+          if (transcript.includes("object")) {
+            navigate("/image/object");
+            handled = true;
+          } else if (transcript.includes("currency") || transcript.includes("money")) {
+            navigate("/image/currency");
+            handled = true;
+          } else if (transcript.includes("barcode") || transcript.includes("product")) {
+            navigate("/image/barcode");
+            handled = true;
+          } else if (transcript.includes("text") || transcript.includes("document")) {
+            navigate("/image/text");
+            handled = true;
+          } else if (transcript.includes("news")) {
+            navigate("/news");
+            handled = true;
+          } else if (transcript.includes("chatbot") || transcript.includes("chat bot") || transcript.includes("chat")) {
+            navigate("/chatbot");
+            handled = true;
+          } else if (transcript.includes("navigation") || transcript.includes("navigate")) {
+            navigate("/navigation");
+            handled = true;
+          } else if (transcript.includes("music")) {
+            navigate("/music");
+            handled = true;
+          } else if (
+            transcript.includes("home") ||
+            transcript.includes("homepage") ||
+            transcript.includes("main menu") ||
+            transcript.includes("main screen")
+          ) {
+            navigate("/");
+            handled = true;
+          }
+        }
+
+        if (!handled) {
+          speech("Sorry, I don't understand");
+        }
+
+        // After one command, stop mic (push-to-talk)
+        stopVoiceRecognition();
+      };
+
+      recognition.onerror = (event) => {
+        console.error("Speech recognition error (OutdoorNavigation):", event.error);
+        recognition.isActive = false;
+        setIsVoiceCommandActive(false);
+      };
+
+      recognition.onend = () => {
+        console.log("OutdoorNavigation voice recognition ended");
+        recognition.isActive = false;
+        setIsVoiceCommandActive(false);
+      };
+
+      recognitionRef.current = recognition;
+    } else {
+      console.warn("SpeechRecognition API is not supported in this browser.");
+    }
+
+    return () => {
+      console.log("OutdoorNavigation unmounting, cleaning up voice recognition");
+      isMountedRef.current = false;
+
+      if (noSpeechTimeoutRef.current) {
+        clearTimeout(noSpeechTimeoutRef.current);
+      }
+
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.onresult = null;
+          recognitionRef.current.onerror = null;
+          recognitionRef.current.onend = null;
+          recognitionRef.current.onstart = null;
+          recognitionRef.current.abort();
+          recognitionRef.current = null;
+        } catch (e) {
+          console.log("Error stopping OutdoorNavigation recognition:", e);
+        }
+      }
+
+      setIsVoiceCommandActive(false);
+    };
+  }, [navigate, startNavigation, stopNavigation, stopVoiceRecognition]);
+  useEffect(() => {
+    speech("Outdoor navigation ready. Space to start.");
     return () => {
       disconnectWebSocket();
       window.speechSynthesis?.cancel();
@@ -224,6 +394,25 @@ export default function OutdoorNavigation() {
       videoRef.current.play().catch(() => {});
     }
   }, []);
+
+  // Space key toggles voice command (push-to-talk), ignore when typing
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.code !== "Space" && event.key !== " ") return;
+
+      const target = event.target;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) return;
+
+      event.preventDefault();
+      // Khi bấm Space, dừng mọi TTS hiện tại rồi bật/tắt mic
+      window.speechSynthesis?.cancel();
+      toggleVoiceCommand();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleVoiceCommand]);
 
   const getPositionColor = () => {
     if (navigationData.sidewalk === 'Middle of Sidewalk') return '#32CD32';
@@ -296,13 +485,13 @@ export default function OutdoorNavigation() {
             </div>
 
             <div className="btn-wrapper">
-              <Tooltip title={isRecording ? "Stop Listening" : "Voice Command"} arrow>
+              <Tooltip title={isVoiceCommandActive ? "Stop Listening" : "Voice Command"} arrow>
                 <IconButton
-                  className={`action-icon-btn voice-btn ${isRecording ? 'active' : ''}`}
-                  onClick={handleVoiceToggle}
+                  className={`action-icon-btn voice-btn ${isVoiceCommandActive ? 'active' : ''}`}
+                  onClick={toggleVoiceCommand}
                   size="large"
                 >
-                  {isRecording ? <StopCircle /> : <KeyboardVoice />}
+                  {isVoiceCommandActive ? <StopCircle /> : <KeyboardVoice />}
                 </IconButton>
               </Tooltip>
               <span className="btn-label">Voice</span>

@@ -5,7 +5,7 @@ import logo from "../assets/logo.png";
 import "./Home.css";
 
 const INTRO_MESSAGE =
-  "Hello and welcome to SightTech! SightTech is an AI-powered application designed to assist visually impaired users. You can say commands like 'Open Object Detection', 'Go to News', or 'Start Currency Detection' to navigate. Say something now to begin!";
+  "Welcome to SightTech! SightTech is an AI-powered application designed to assist visually impaired users. You can say commands like 'Open Object Detection', 'Go to News' to navigate.";
 
 const Home = () => {
   const [introComplete, setIntroComplete] = useState(false);

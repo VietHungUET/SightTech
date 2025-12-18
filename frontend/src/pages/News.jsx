@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import {
   Button,
   TextField,
@@ -41,6 +42,7 @@ import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import SpeedIcon from "@mui/icons-material/Speed";
 
 export default function News() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -205,9 +207,46 @@ export default function News() {
     };
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setQuery(transcript);
-      fetchNews(transcript);
+      const transcriptRaw = event.results[0][0].transcript.trim();
+      const transcript = transcriptRaw.toLowerCase();
+
+      // Navigation commands (Open / Switch / Go to / I want to use ...)
+      const isNavIntent =
+        transcript.includes("open") ||
+        transcript.includes("switch to") ||
+        transcript.includes("go to") ||
+        transcript.includes("i want to use");
+
+      if (isNavIntent) {
+        if (transcript.includes("object")) {
+          navigate("/image/object");
+        } else if (transcript.includes("currency") || transcript.includes("money")) {
+          navigate("/image/currency");
+        } else if (transcript.includes("barcode") || transcript.includes("product")) {
+          navigate("/image/barcode");
+        } else if (transcript.includes("text") || transcript.includes("document")) {
+          navigate("/image/text");
+        } else if (transcript.includes("news")) {
+          // Already here
+          announce("You are already in the news section");
+        } else if (transcript.includes("chatbot") || transcript.includes("chat bot") || transcript.includes("chat")) {
+          navigate("/chatbot");
+        } else if (transcript.includes("navigation") || transcript.includes("navigate")) {
+          navigate("/navigation");
+        } else if (transcript.includes("music")) {
+          navigate("/music");
+        } else if (transcript.includes("home") || transcript.includes("homepage") || transcript.includes("main menu") || transcript.includes("main screen")) {
+          navigate("/");
+        } else {
+          // Unknown target → fallback to search
+          setQuery(transcriptRaw);
+          fetchNews(transcriptRaw);
+        }
+      } else {
+        // Default: treat as search query
+        setQuery(transcriptRaw);
+        fetchNews(transcriptRaw);
+      }
     };
 
     recognition.onerror = (event) => {
