@@ -1,4 +1,5 @@
 import WebCam from "../components/WebCam.jsx";
+import ProductInfoCard from "../components/ProductInfoCard.jsx";
 import "./ImageDetection.css";
 import { IconButton, Tooltip, Chip } from "@mui/material";
 import {
@@ -38,7 +39,7 @@ export default function ImageDetection() {
 
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
-  const lastScannedTime = useRef(0);
+
   const isProcessingRef = useRef(false);
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
@@ -54,6 +55,8 @@ export default function ImageDetection() {
   const initialType = mode && modeToType[mode.toLowerCase()] ? modeToType[mode.toLowerCase()] : "Object";
   const [detectionType, setDetectionType] = useState(initialType);
   const [reply, setReply] = useState("");
+  const [productInfo, setProductInfo] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRealtimeActive, setIsRealtimeActive] = useState(false);
   const [realtimeDescription, setRealtimeDescription] = useState("");
@@ -168,7 +171,7 @@ export default function ImageDetection() {
       // Send base64 image to backend
       // Extract base64 data (remove data:image/jpeg;base64, prefix)
       const base64Data = imageSrc.split(',')[1];
-      
+
       wsRef.current.send(JSON.stringify({
         type: "frame",
         data: base64Data,
@@ -187,11 +190,11 @@ export default function ImageDetection() {
     try {
       console.log("[WebSocket] Connecting to real-time description service...");
       const ws = new WebSocket(`${WS_BASE_URL}/ws/realtime-description`);
-      
+
       ws.onopen = () => {
         console.log("[WebSocket] Connected successfully");
         setRealtimeDescription("Real-time description active. Analyzing scene...");
-        
+
         // Start sending frames every 3 seconds
         frameIntervalRef.current = setInterval(() => {
           sendFrameToBackend();
@@ -201,7 +204,7 @@ export default function ImageDetection() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          
+
           if (data.type === "description") {
             const description = data.text || data.description;
             console.log("[WebSocket] Received description:", description);
@@ -228,13 +231,13 @@ export default function ImageDetection() {
       ws.onclose = (event) => {
         console.log("[WebSocket] Connection closed:", event.code, event.reason);
         wsRef.current = null;
-        
+
         // Stop sending frames
         if (frameIntervalRef.current) {
           clearInterval(frameIntervalRef.current);
           frameIntervalRef.current = null;
         }
-        
+
         // Show disconnection message only if it was unexpected
         if (event.code !== 1000 && isRealtimeActive) {
           setRealtimeDescription("Connection lost. Please restart real-time mode.");
@@ -440,48 +443,56 @@ export default function ImageDetection() {
           formData.append("trigger", triggerSource === "voice" ? "voice-command" : "snapshot");
           const barcodeResult = await userAPI.postBarcodeScan(formData);
           const data = barcodeResult?.data ?? {};
-          
-          let displayText = "";
+
           let speechContent = "";
-          
+
           if (data.status === "success" && data.product) {
             const product = data.product;
-            const lines = [];
-            
+
+            // Format nutrition data for display
+            const formattedProduct = { ...product };
+            if (product.nutrition) {
+              const n = product.nutrition;
+              const formattedNutrition = {};
+              if (n.energy_kcal) formattedNutrition["Energy"] = `${parseFloat(n.energy_kcal).toFixed(1)} kcal/100g`;
+              if (n.proteins) formattedNutrition["Protein"] = `${parseFloat(n.proteins).toFixed(1)} g/100g`;
+              if (n.carbohydrates) formattedNutrition["Carbs"] = `${parseFloat(n.carbohydrates).toFixed(1)} g/100g`;
+              if (n.fat) formattedNutrition["Fat"] = `${parseFloat(n.fat).toFixed(1)} g/100g`;
+
+              // Add any other fields that might be present
+              Object.keys(n).forEach(key => {
+                if (!['energy_kcal', 'proteins', 'carbohydrates', 'fat'].includes(key)) {
+                  formattedNutrition[key] = n[key];
+                }
+              });
+              formattedProduct.nutrition = formattedNutrition;
+            }
+
+            setProductInfo(formattedProduct);
+            setReply(""); // Clear text reply as we show the card
+
             if (product.brand) {
-              lines.push(`${product.name} - ${product.brand}`);
               speechContent = `This is ${product.name} by ${product.brand}.`;
             } else {
-              lines.push(product.name);
               speechContent = `This is ${product.name}.`;
             }
-            
-            if (product.type) {
-              lines.push(`Type: ${product.type}`);
-            }
-            
+
             if (product.nutrition) {
-              lines.push("");
-              lines.push("Nutrition Facts:");
               const n = product.nutrition;
-              if (n.energy_kcal) lines.push(`Energy: ${parseFloat(n.energy_kcal).toFixed(1)} kcal/100g`);
-              if (n.proteins) lines.push(`Protein: ${parseFloat(n.proteins).toFixed(1)} g/100g`);
-              if (n.carbohydrates) lines.push(`Carbs: ${parseFloat(n.carbohydrates).toFixed(1)} g/100g`);
-              if (n.fat) lines.push(`Fat: ${parseFloat(n.fat).toFixed(1)} g/100g`);
-              
               speechContent += ` Nutrition facts: Energy ${parseFloat(n.energy_kcal || 0).toFixed(0)} kilocalories, Protein ${parseFloat(n.proteins || 0).toFixed(1)} grams, Carbs ${parseFloat(n.carbohydrates || 0).toFixed(1)} grams, Fat ${parseFloat(n.fat || 0).toFixed(1)} grams per 100 grams.`;
             }
-            
-            displayText = lines.join("\n");
           } else if (data.status === "partial") {
-            displayText = "Barcode detected but product not found in database.";
-            speechContent = displayText;
+            const msg = "Barcode detected but product not found in database.";
+            setReply(msg);
+            setProductInfo(null);
+            speechContent = msg;
           } else {
-            displayText = "No barcode detected. Please try again with better lighting.";
-            speechContent = displayText;
+            const msg = "No barcode detected. Please try again with better lighting.";
+            setReply(msg);
+            setProductInfo(null);
+            speechContent = msg;
           }
-          
-          setReply(displayText);
+
           speech(speechContent);
           break;
         }
@@ -785,6 +796,8 @@ export default function ImageDetection() {
 
   const replyMessage = realtimeDescription || reply || (isProcessing ? "Processing..." : "Ready when you are.");
 
+
+
   return (
     <main
       className="image-detection-container"
@@ -901,6 +914,11 @@ export default function ImageDetection() {
             aria-atomic="true"
           >
             {replyMessage}
+            {productInfo && (
+              <div className="product-info-section">
+                <ProductInfoCard product={productInfo} />
+              </div>
+            )}
           </output>
         </aside>
       </div>

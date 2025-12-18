@@ -35,13 +35,9 @@ class LanguageConfig:
             "en": ["product", "barcode", "logo", "brand"],
             "vi": ["sản phẩm", "mã vạch", "logo", "nhãn hiệu"]
         },
-        "Distance": {
-            "en": ["distance", "measurement", "how far", "range"],
-            "vi": ["khoảng cách", "đo", "bao xa", "phạm vi"]
-        },
-        "Face": {
-            "en": ["face", "person", "recognition", "who is this"],
-            "vi": ["khuôn mặt", "người", "nhận diện", "ai đây"]
+        "RealTime": {
+            "en": ["realtime", "real-time", "real time", "live description", "continuous", "stream"],
+            "vi": ["thời gian thực", "trực tiếp", "liên tục", "mô tả trực tiếp"]
         },
         "Music": {
             "en": ["music", "song", "track", "audio", "listen"],
@@ -64,12 +60,12 @@ class LanguageConfig:
             "vi": ["máy ảnh", "chụp", "chụp ảnh", "hình", "ảnh"]
         },
         "Play": {
-            "en": ["play", "begin", "start playback", "launch"],
-            "vi": ["phát", "bắt đầu", "chơi", "khởi động"]
+            "en": ["play", "begin", "start", "start playback", "launch", "start real-time", "start realtime"],
+            "vi": ["phát", "bắt đầu", "chơi", "khởi động", "bắt đầu thời gian thực"]
         },
         "Stop": {
-            "en": ["stop", "pause", "halt", "end", "cancel"],
-            "vi": ["dừng", "tạm dừng", "ngừng", "kết thúc", "hủy"]
+            "en": ["stop", "pause", "halt", "end", "cancel", "stop real-time", "stop realtime"],
+            "vi": ["dừng", "tạm dừng", "ngừng", "kết thúc", "hủy", "dừng thời gian thực"]
         },
         "Detect": {
             "en": ["detect", "scan", "recognize surroundings"],
