@@ -16,6 +16,8 @@ export default function ChatBot() {
     const isSpeakingInternalRef = useRef(false);
     const pendingTranscriptRef = useRef('');
     const sendMessageTimeoutRef = useRef(null);
+    const inactivityTimeoutRef = useRef(null);      // Auto-stop if no speech
+    const lastResultTimeRef = useRef(null);         // Track last speech result time
     
     const [isListening, setIsListening] = useState(false);
     const [isVoiceCommandActive, setIsVoiceCommandActive] = useState(false);
@@ -37,7 +39,27 @@ export default function ChatBot() {
             recognitionRef.current.start();
             recognitionRef.current.isActive = true;
             setIsVoiceCommandActive(true);
+            lastResultTimeRef.current = Date.now();
             console.log('Voice recognition started');
+
+            // Auto-stop after 5s if no speech result
+            if (inactivityTimeoutRef.current) {
+                clearTimeout(inactivityTimeoutRef.current);
+            }
+            inactivityTimeoutRef.current = setTimeout(() => {
+                if (!recognitionRef.current || !recognitionRef.current.isActive) return;
+
+                const now = Date.now();
+                const last = lastResultTimeRef.current || 0;
+                if (now - last >= 5000) {
+                    console.log('⏹️ No speech detected within timeout, stopping voice recognition');
+                    try {
+                        recognitionRef.current.stop();
+                    } catch (e) {
+                        console.error('Failed to stop recognition on inactivity:', e);
+                    }
+                }
+            }, 4000);
         } catch (e) {
             if (e.name === 'InvalidStateError') {
                 recognitionRef.current.isActive = true;
@@ -53,6 +75,11 @@ export default function ChatBot() {
             recognitionRef.current.stop();
             recognitionRef.current.isActive = false;
             setIsVoiceCommandActive(false);
+
+            if (inactivityTimeoutRef.current) {
+                clearTimeout(inactivityTimeoutRef.current);
+                inactivityTimeoutRef.current = null;
+            }
         } catch (e) {
             console.error('Failed to stop voice recognition:', e);
         }
@@ -60,7 +87,7 @@ export default function ChatBot() {
 
     // Load voices on mount
     useEffect(() => {
-        const introduction = "This is Chatbot mode";
+        const introduction = "This is Chatbot mode. Press the Space key to start a voice command.";
 
         const loadVoices = () => {
             const availableVoices = window.speechSynthesis.getVoices();
@@ -99,6 +126,8 @@ export default function ChatBot() {
                     console.log('Ignoring voice command while speaking');
                     return;
                 }
+
+                lastResultTimeRef.current = Date.now();
 
                 const transcript = event.results[event.results.length - 1][0].transcript.trim();
                 console.log('Voice command received:', transcript);
@@ -182,12 +211,6 @@ export default function ChatBot() {
                 if (restartTimeoutRef.current) {
                     clearTimeout(restartTimeoutRef.current);
                 }
-
-                restartTimeoutRef.current = setTimeout(() => {
-                    if (!recognition.isActive && isMountedRef.current) {
-                        startVoiceRecognition();
-                    }
-                }, 1000);
             };
 
             recognition.onend = () => {
@@ -201,12 +224,6 @@ export default function ChatBot() {
                 if (!isMountedRef.current) {
                     return;
                 }
-
-                restartTimeoutRef.current = setTimeout(() => {
-                    if (!recognition.isActive && isMountedRef.current) {
-                        startVoiceRecognition();
-                    }
-                }, 3000);
             };
 
             recognition.onstart = () => {
@@ -215,12 +232,6 @@ export default function ChatBot() {
             };
 
             recognitionRef.current = recognition;
-
-            // Start voice recognition after 4 seconds
-            setTimeout(() => {
-                isSpeakingInternalRef.current = false;
-                startVoiceRecognition();
-            }, 4000);
         }
 
         return () => {
@@ -229,6 +240,10 @@ export default function ChatBot() {
 
             if (restartTimeoutRef.current) {
                 clearTimeout(restartTimeoutRef.current);
+            }
+
+            if (inactivityTimeoutRef.current) {
+                clearTimeout(inactivityTimeoutRef.current);
             }
 
             if (sendMessageTimeoutRef.current) {
@@ -287,17 +302,11 @@ export default function ChatBot() {
             // Resume voice recognition after speaking
             setTimeout(() => {
                 isSpeakingInternalRef.current = false;
-                if (isMountedRef.current) {
-                    startVoiceRecognition();
-                }
             }, 1000);
         };
         utterance.onerror = () => {
             setIsSpeaking(false);
             isSpeakingInternalRef.current = false;
-            if (isMountedRef.current) {
-                startVoiceRecognition();
-            }
         };
 
         window.speechSynthesis.speak(utterance);
@@ -328,7 +337,8 @@ export default function ChatBot() {
             };
             
             setMessages((prev) => [...prev, botMessage]);
-            speak(botReply, { rate: 1.5 });
+            // Speak a bit slower for better comprehension
+            speak(botReply, { rate: 1.1 });
             
         } catch (error) {
             console.error('Error sending message to chatbot:', error);
@@ -338,7 +348,7 @@ export default function ChatBot() {
                 timestamp: new Date()
             };
             setMessages((prev) => [...prev, errorMessage]);
-            speak('Sorry, something went wrong. Please try again.');
+            speak('Sorry, something went wrong. Please try again.', { rate: 1.1 });
         } finally {
             setLoading(false);
         }
@@ -350,6 +360,44 @@ export default function ChatBot() {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
     }, [messages]);
+
+    // Toggle helper so Space và icon mic cùng một logic
+    const toggleVoiceRecognition = useCallback(() => {
+        if (recognitionRef.current && recognitionRef.current.isActive) {
+            stopVoiceRecognition();
+        } else {
+            startVoiceRecognition();
+        }
+    }, [startVoiceRecognition, stopVoiceRecognition]);
+
+    // Keyboard shortcut: Space to toggle voice recognition
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            const target = event.target;
+            const isTypingElement =
+                target.tagName === 'INPUT' ||
+                target.tagName === 'TEXTAREA' ||
+                target.isContentEditable;
+
+            if (isTypingElement) return;
+
+            if (event.code === 'Space' || event.key === ' ') {
+                event.preventDefault();
+
+                if (recognitionRef.current && recognitionRef.current.isActive) {
+                    stopVoiceRecognition();
+                } else {
+                    startVoiceRecognition();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [startVoiceRecognition, stopVoiceRecognition]);
 
     return (
         <Container maxWidth="lg" className="chatbotContainer">
@@ -405,10 +453,9 @@ export default function ChatBot() {
                         ))
                     ) : (
                         <div className="emptyState">
-                            <MicIcon className="emptyStateIcon" />
                             <h2 className="emptyStateTitle">Start a conversation</h2>
                             <p className="emptyStateHint">
-                                Type a message or tap the microphone to speak
+                                Type a message, tap the microphone, or press the Space key to speak
                             </p>
                         </div>
                     )}
@@ -418,8 +465,8 @@ export default function ChatBot() {
                 <ChatInput 
                     onSend={sendMessage} 
                     loading={loading}
-                    onRecordingChange={setIsListening}
-                    onStopSpeaking={stopSpeaking}
+                    isListening={isVoiceCommandActive}
+                    onToggleMic={toggleVoiceRecognition}
                 />
             </Card>
         </Container>

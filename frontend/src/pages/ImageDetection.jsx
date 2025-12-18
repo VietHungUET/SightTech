@@ -47,6 +47,8 @@ export default function ImageDetection() {
   const isMountedRef = useRef(true);
   const restartTimeoutRef = useRef(null);
   const isSpeakingRef = useRef(false);
+  const noSpeechTimeoutRef = useRef(null);
+  const hasReceivedResultRef = useRef(false);
 
   // Initialize detection type from URL parameter
   const initialType = mode && modeToType[mode.toLowerCase()] ? modeToType[mode.toLowerCase()] : "Object";
@@ -58,33 +60,67 @@ export default function ImageDetection() {
   const [isVoiceCommandActive, setIsVoiceCommandActive] = useState(false);
 
   // Voice Recognition Helper Functions
-  const startVoiceRecognition = useCallback(() => {
-    if (!recognitionRef.current || recognitionRef.current.isActive || !isMountedRef.current || isSpeakingRef.current) return;
-
-    try {
-      recognitionRef.current.start();
-      recognitionRef.current.isActive = true;
-      setIsVoiceCommandActive(true);
-      console.log('Voice recognition started');
-    } catch (e) {
-      if (e.name === 'InvalidStateError') {
-        recognitionRef.current.isActive = true;
-        setIsVoiceCommandActive(true);
-      }
-    }
-  }, []);
-
   const stopVoiceRecognition = useCallback(() => {
+    if (noSpeechTimeoutRef.current) {
+      clearTimeout(noSpeechTimeoutRef.current);
+      noSpeechTimeoutRef.current = null;
+    }
+
     if (!recognitionRef.current || !recognitionRef.current.isActive) return;
 
     try {
       recognitionRef.current.stop();
       recognitionRef.current.isActive = false;
       setIsVoiceCommandActive(false);
+      console.log('Voice recognition stopped');
     } catch (e) {
       console.error('Failed to stop voice recognition:', e);
     }
   }, []);
+
+  const startVoiceRecognition = useCallback(() => {
+    if (!recognitionRef.current || recognitionRef.current.isActive || !isMountedRef.current || isSpeakingRef.current) return;
+
+    try {
+      hasReceivedResultRef.current = false;
+
+      // Clear previous timeout if any
+      if (noSpeechTimeoutRef.current) {
+        clearTimeout(noSpeechTimeoutRef.current);
+      }
+
+      recognitionRef.current.start();
+      recognitionRef.current.isActive = true;
+      setIsVoiceCommandActive(true);
+      console.log('Voice recognition started (push-to-talk)');
+
+      // Auto-stop if user doesn't say anything within 2 seconds
+      noSpeechTimeoutRef.current = setTimeout(() => {
+        if (!hasReceivedResultRef.current && recognitionRef.current?.isActive) {
+          console.log('No speech detected for 2s, stopping mic');
+          stopVoiceRecognition();
+        }
+      }, 5000);
+    } catch (e) {
+      if (e.name === 'InvalidStateError') {
+        recognitionRef.current.isActive = true;
+        setIsVoiceCommandActive(true);
+      } else {
+        console.error('Failed to start voice recognition:', e);
+      }
+    }
+  }, [stopVoiceRecognition]);
+
+  // Toggle mic (click button or press Space)
+  const toggleVoiceCommand = useCallback(() => {
+    if (isSpeakingRef.current) return;
+
+    if (isVoiceCommandActive) {
+      stopVoiceRecognition();
+    } else {
+      startVoiceRecognition();
+    }
+  }, [isVoiceCommandActive, startVoiceRecognition, stopVoiceRecognition]);
 
   const speakWithPause = useCallback(async (text) => {
     isSpeakingRef.current = true;
@@ -95,14 +131,12 @@ export default function ImageDetection() {
     } catch (error) {
       console.error('Speech error:', error);
     } finally {
+      // Sau khi nói xong thì mic vẫn tắt, đợi user bấm / nhấn space để bật lại
       setTimeout(() => {
         isSpeakingRef.current = false;
-        if (isMountedRef.current) {
-          startVoiceRecognition();
-        }
       }, 500);
     }
-  }, [startVoiceRecognition, stopVoiceRecognition]);
+  }, [stopVoiceRecognition]);
 
   // Sync detection type with URL parameter
   useEffect(() => {
@@ -495,6 +529,8 @@ export default function ImageDetection() {
       recognition.isActive = false;
 
       recognition.onresult = (event) => {
+        hasReceivedResultRef.current = true;
+
         if (isSpeakingRef.current) {
           console.log('Ignoring voice command while speaking');
           return;
@@ -543,6 +579,9 @@ export default function ImageDetection() {
             commandRecognized = true;
           } else if (transcript.includes('music')) {
             navigate('/music');
+            commandRecognized = true;
+          } else if (transcript.includes('home') || transcript.includes('homepage') || transcript.includes('main menu') || transcript.includes('main screen')) {
+            navigate('/');
             commandRecognized = true;
           }
         }
@@ -600,46 +639,21 @@ export default function ImageDetection() {
           console.log('Command not recognized:', transcript);
           speakWithPause("Sorry, I don't understand");
         }
+
+        // Sau khi xử lý xong 1 câu lệnh thì tắt mic (push-to-talk)
+        stopVoiceRecognition();
       };
 
       recognition.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
         recognition.isActive = false;
         setIsVoiceCommandActive(false);
-
-        if (restartTimeoutRef.current) {
-          clearTimeout(restartTimeoutRef.current);
-        }
-
-        if (event.error === 'aborted' || event.error === 'audio-capture' || !isMountedRef.current) {
-          return;
-        }
-
-        restartTimeoutRef.current = setTimeout(() => {
-          if (!recognition.isActive && isMountedRef.current) {
-            startVoiceRecognition();
-          }
-        }, 1000);
       };
 
       recognition.onend = () => {
         console.log('Voice recognition ended');
         recognition.isActive = false;
         setIsVoiceCommandActive(false);
-
-        if (restartTimeoutRef.current) {
-          clearTimeout(restartTimeoutRef.current);
-        }
-
-        if (!isMountedRef.current) {
-          return;
-        }
-
-        restartTimeoutRef.current = setTimeout(() => {
-          if (!recognition.isActive && isMountedRef.current) {
-            startVoiceRecognition();
-          }
-        }, 5000);
       };
 
       recognition.onstart = () => {
@@ -648,12 +662,6 @@ export default function ImageDetection() {
       };
 
       recognitionRef.current = recognition;
-
-      // Start voice recognition after a longer delay to avoid picking up system speech
-      setTimeout(() => {
-        isSpeakingRef.current = false;
-        startVoiceRecognition();
-      }, 3000);
     } else {
       // No speech when SpeechRecognition not supported
     }
@@ -687,6 +695,27 @@ export default function ImageDetection() {
     setReply("");
     setRealtimeDescription("");
   }, [detectionType]);
+
+  // Allow toggling mic with Space key (global, but ignore when typing in inputs)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.code !== "Space" && event.key !== " ") return;
+
+      const target = event.target;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) {
+        return;
+      }
+
+      event.preventDefault();
+      toggleVoiceCommand();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [toggleVoiceCommand]);
 
   useEffect(() => {
     isProcessingRef.current = isProcessing;
@@ -828,22 +857,18 @@ export default function ImageDetection() {
             )}
 
             <div className="btn-wrapper">
-              <Tooltip title={isVoiceCommandActive ? "Voice recognition active" : "Click to start voice recognition"} arrow>
+              <Tooltip
+                title={
+                  isVoiceCommandActive
+                    ? "Mic on - speak your command, or press Space / click again to stop"
+                    : "Click or press Space to start voice command"
+                }
+                arrow
+              >
                 <IconButton
                   className={`action-icon-btn voice-btn ${isVoiceCommandActive ? 'active' : ''}`}
-                  disabled={isVoiceCommandActive}
-                  onClick={() => {
-                    if (!isVoiceCommandActive) {
-                      // Clear any pending restart timeout
-                      if (restartTimeoutRef.current) {
-                        clearTimeout(restartTimeoutRef.current);
-                        restartTimeoutRef.current = null;
-                      }
-                      // Start voice recognition immediately
-                      startVoiceRecognition();
-                    }
-                  }}
-                  aria-label={isVoiceCommandActive ? "Voice command active" : "Click to activate voice command"}
+                  onClick={toggleVoiceCommand}
+                  aria-label={isVoiceCommandActive ? "Mic on, click to stop" : "Click to activate voice command"}
                   size="large"
                 >
                   {isVoiceCommandActive ? <StopCircle /> : <KeyboardVoice />}
