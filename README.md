@@ -20,45 +20,46 @@ Before setting up the project, ensure you have the following installed:
 
 SightTech offers an AI-powered, voice-first interface designed specifically for visually impaired users, with the following core features:
 
-🏠 Home Page
+🏠** Home Page**
 
 The Home Page serves as the central hub of the application, providing an accessible and intuitive entry point for all features.
 It includes a large voice interaction button that allows users to control the system through speech commands.
 A minimal and high-contrast interface, combined with clear icons and audio feedback, ensures ease of navigation for users with visual impairments.
-<img width="1839" height="966" alt="image" src="https://github.com/user-attachments/assets/c6db41be-9c78-402a-9431-0f9b7f116a32" /
+<img width="753" height="424" alt="image" src="https://github.com/user-attachments/assets/3c261b1a-cefa-4f2c-9512-0df5fbd8c823" />
 
-🔍 Object Detection
+
+🔍** Object Detection**
 
 Uses computer vision to detect and identify objects in the surrounding environment.
 The system provides real-time audio feedback, helping users recognize nearby objects and avoid obstacles.
 
-🗣️ Real-time Description
+🗣️** Real-time Description**
 
 Continuously analyzes the environment and generates spoken descriptions of scenes, objects, and contextual changes, enhancing situational awareness.
 
-📝 Text Recognition (OCR)
+📝 **Text Recognition (OCR)**
 
 Extracts text from images or camera input and reads it aloud, enabling users to access printed materials such as signs, documents, and labels.
 
-🧭 Navigation
+🧭 **Navigation**
 
 Assists users in movement and orientation by providing voice-guided directions, supporting safer and more confident navigation.
 
 <img width="752" height="423" alt="image" src="https://github.com/user-attachments/assets/3a5880da-5bec-40b8-9ad9-4e12ffaa9bd0" />
 
 
-💬 Chatbot
+💬 **Chatbot**
 
 An AI-based conversational assistant that answers questions, explains information, and supports users via voice or text interaction.
 <img width="753" height="424" alt="image" src="https://github.com/user-attachments/assets/5199ad5e-e7d3-49d5-8178-70825b5f5735" />
 
-📰 News
+📰 **News**
 
 Allows users to search for, browse, and listen to news content using voice commands, ensuring convenient access to up-to-date information.
 <img width="752" height="423" alt="image" src="https://github.com/user-attachments/assets/a29e45b9-beac-4af0-92e2-f37f8158ea96" />
 
 
-🎵 Music Detection
+🎵 **Music Detection**
 
 Identifies music playing in the environment and provides details such as song title and artist through audio feedback.
 <img width="753" height="424" alt="image" src="https://github.com/user-attachments/assets/1550e8dd-b1b6-4706-9a24-49aea78fd3f1" />
