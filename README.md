@@ -56,7 +56,8 @@ An AI-based conversational assistant that answers questions, explains informatio
 📰 **News**
 
 Allows users to search for, browse, and listen to news content using voice commands, ensuring convenient access to up-to-date information.
-<img width="752" height="423" alt="image" src="https://github.com/user-attachments/assets/a29e45b9-beac-4af0-92e2-f37f8158ea96" />
+<img width="753" height="424" alt="image" src="https://github.com/user-attachments/assets/039e15fd-42e7-4683-8066-96b2241bea9b" />
+
 
 
 🎵 **Music Detection**
