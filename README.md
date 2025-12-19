@@ -20,7 +20,7 @@ Before setting up the project, ensure you have the following installed:
 
 SightTech offers an AI-powered, voice-first interface designed specifically for visually impaired users, with the following core features:
 
-🏠** Home Page**
+🏠**Home Page**
 
 The Home Page serves as the central hub of the application, providing an accessible and intuitive entry point for all features.
 It includes a large voice interaction button that allows users to control the system through speech commands.
@@ -28,12 +28,12 @@ A minimal and high-contrast interface, combined with clear icons and audio feedb
 <img width="753" height="424" alt="image" src="https://github.com/user-attachments/assets/3c261b1a-cefa-4f2c-9512-0df5fbd8c823" />
 
 
-🔍** Object Detection**
+🔍**Object Detection**
 
 Uses computer vision to detect and identify objects in the surrounding environment.
 The system provides real-time audio feedback, helping users recognize nearby objects and avoid obstacles.
 
-🗣️** Real-time Description**
+🗣️**Real-time Description**
 
 Continuously analyzes the environment and generates spoken descriptions of scenes, objects, and contextual changes, enhancing situational awareness.
 
