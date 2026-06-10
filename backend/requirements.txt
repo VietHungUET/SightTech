@@ -18,11 +18,14 @@ imread-from-url==0.1.3
 gtts==2.5.4
 pyzbar==0.1.9
 opencv-python==4.10.0.84
+paddleocr>=3.0,<4
+paddlepaddle>=3.0,<4
 
 requests==2.31.0
+redis==5.2.1
+ultralytics>=8.3,<9
 
 greenlet>=1.0
 #SQLAlchemy==1.4.53
 newspaper3k
 lxml_html_clean
-opencv-python

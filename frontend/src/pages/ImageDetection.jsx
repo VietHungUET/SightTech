@@ -192,10 +192,10 @@ export default function ImageDetection() {
         console.log("[WebSocket] Connected successfully");
         setRealtimeDescription("Real-time description active. Analyzing scene...");
         
-        // Start sending frames every 3 seconds
+        // Send at 1 FPS; the backend skips unchanged frames before running YOLO.
         frameIntervalRef.current = setInterval(() => {
           sendFrameToBackend();
-        }, 3000);
+        }, 1000);
       };
 
       ws.onmessage = (event) => {
@@ -382,15 +382,25 @@ export default function ImageDetection() {
     try {
       switch (detectionType) {
         case "Text": {
-          const textResult = await userAPI.postDocumentRecognition(formData);
-          const text = textResult?.data?.text;
-          if (!text) {
-            speech("No text detected.");
-            setReply("No text detected.");
-            break;
+          try {
+            const textResult = await userAPI.postDocumentRecognition(formData);
+            const text = textResult?.data?.text;
+            if (!text) {
+              const feedback = textResult?.data?.feedback || "No text detected.";
+              speech(feedback);
+              setReply(feedback);
+              break;
+            }
+            speech(`Detected text: ${text}`);
+            setReply(text);
+          } catch (error) {
+            const feedback =
+              error.response?.data?.detail ||
+              error.response?.data?.feedback ||
+              "Text recognition failed. Please try again.";
+            speech(feedback);
+            setReply(feedback);
           }
-          speech(`Detected text: ${text}`);
-          setReply(text);
           break;
         }
         case "Currency": {
