@@ -27,6 +27,18 @@ GENERAL_QA_PROMPT = (
     "Avoid referring to visuals. Speak as if you're reading out loud."
 )
 
+DOCUMENT_UNDERSTANDING_PROMPT = (
+    "You help visually impaired users understand recognized document text. "
+    "Answer the user's request using only the supplied document text. "
+    "Keep the response concise, clear, and suitable for speech."
+)
+
+VOICE_COMMAND_ROUTING_PROMPT = (
+    "You classify voice commands for an accessibility application. "
+    "Follow the schema and allowed values supplied by the user. "
+    "Return one valid JSON object only, without Markdown."
+)
+
 IMAGE_CAPTIONING_PROMPT = (
     "You are assisting a visually impaired person. Provide a clear and natural one-sentence description of the image, mentioning the main subjects, actions, and setting."
 )
@@ -103,6 +115,8 @@ def get_task_prompt(task: str) -> str:
     prompts = {
         "text_recognition": TEXT_RECOGNITION_PROMPT,
         "general_question_answering": GENERAL_QA_PROMPT,
+        "document_understanding": DOCUMENT_UNDERSTANDING_PROMPT,
+        "voice_command_routing": VOICE_COMMAND_ROUTING_PROMPT,
         "image_captioning": IMAGE_CAPTIONING_PROMPT,
         "product_recognition": PRODUCT_RECOGNITION_PROMPT,
         "currency_detection": CURRENCY_DETECTION_PROMPT,

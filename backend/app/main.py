@@ -44,10 +44,64 @@ from collections import OrderedDict
 from .services.all_task.pipeline import get_llm_response
 from .services.barcode_scanning import BarcodeProcessingError, BarcodeScannerService
 from .services.music_detection.pipeline import execute_music_detection
+from .services.text_recognition import ImageQualityError, TextRecognitionError, TextRecognitionService
+from .services.voice_command import (
+    ConversationStoreError,
+    HybridIntentClassifier,
+    RedisConversationStore,
+    VoiceCommandRouter,
+    build_default_action_registry,
+)
 from .utils.formatter import format_audio_response
 from .websocket_manager import manager
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+
+def _gemini_document_ocr(image_bytes: bytes) -> str:
+    return get_llm_response(
+        query="Extract text from this image.",
+        task="text_recognition",
+        base64_image=base64.b64encode(image_bytes).decode("utf-8"),
+    )
+
+
+text_recognition_service = TextRecognitionService(fallback_ocr=_gemini_document_ocr)
+
+
+def _understand_document(instruction: str, document_text: str) -> str:
+    return get_llm_response(
+        query=f"{instruction}\n\nDocument text:\n{document_text}",
+        task="document_understanding",
+    )
+
+
+def _classify_voice_command(prompt: str) -> str:
+    return get_llm_response(query=prompt, task="voice_command_routing")
+
+
+def _read_news(query: str) -> list:
+    from app.services.article_reading.pipeline import execute_pipeline
+
+    return execute_pipeline(query)
+
+
+voice_conversation_store = RedisConversationStore(
+    redis_url=config.REDIS_URL,
+    ttl_seconds=config.VOICE_SESSION_TTL_SECONDS,
+    max_turns=config.VOICE_SESSION_MAX_TURNS,
+)
+voice_action_registry = build_default_action_registry(
+    recognize_document=text_recognition_service.recognize,
+    process_document=_understand_document,
+    answer_question=ask_general_question,
+    read_news=_read_news,
+)
+voice_command_router = VoiceCommandRouter(
+    store=voice_conversation_store,
+    classifier=HybridIntentClassifier(llm_classifier=_classify_voice_command),
+    actions=voice_action_registry,
+)
 
 try:
     barcode_scanner = BarcodeScannerService()
@@ -107,6 +161,49 @@ async def read_root():
     return {"Hello": "World"}
 
 @app.post("/document_recognition")
+async def document_recognition_hybrid(
+    file: UploadFile = File(...),
+    mode: str = Form("read"),
+    question: str | None = Form(None),
+):
+    try:
+        image_data = await file.read()
+        result = await asyncio.to_thread(text_recognition_service.recognize, image_data)
+
+        normalized_mode = mode.strip().lower()
+        if normalized_mode in {"understand", "summarize", "explain"}:
+            instruction = question or (
+                "Summarize this document."
+                if normalized_mode == "summarize"
+                else "Explain this document clearly."
+            )
+            result["understanding"] = await asyncio.to_thread(
+                get_llm_response,
+                f"{instruction}\n\nDocument text:\n{result['text']}",
+                "document_understanding",
+            )
+
+        return JSONResponse(content=result)
+    except ImageQualityError as exc:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "retry_required",
+                "text": "",
+                "detail": str(exc),
+                "feedback": str(exc),
+                "quality": exc.quality,
+            },
+        )
+    except TextRecognitionError as exc:
+        logger.error("Document recognition failed: %s", exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Unexpected document recognition error")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+@app.post("/document_recognition_legacy", include_in_schema=False)
 async def document_recognition(file: UploadFile = File(...)):
     try:
         start = time.time()
@@ -505,7 +602,12 @@ async def transcribe_audio_simple(file: UploadFile = File(...)):
         }
 
 @app.post("/transcribe_audio_v2")
-async def process_voice_command(file: UploadFile = File(...), current_feature: str | None = None):
+async def process_voice_command(
+    file: UploadFile = File(...),
+    image: UploadFile | None = File(None),
+    current_feature: str | None = None,
+    session_id: str = "default",
+):
     """
     Processes voice input, distinguishing navigation commands from feature queries.
 
@@ -534,75 +636,25 @@ async def process_voice_command(file: UploadFile = File(...), current_feature: s
         if not transcript_text:
              raise HTTPException(status_code=400, detail="Empty transcript received.")
 
-        # Check for Navigation Intent ---
-        navigation_result = find_navigation_intent(transcript_text)
-
-        if navigation_result:
-            return {
-                "transcript": transcript_result,
-                "intent": navigation_result["intent"],
-                "command": navigation_result["target_feature"],
-                "confidence": navigation_result["confidence"],
-                "query": None # Not a query
-            }
-
-        # Check for Action Intent 
-        action_result = find_action_intent(transcript_text)
-
-        if action_result:
-            if action_result["target_feature"]:
-                return {
-                    "transcript": transcript_result,
-                    "intent": "action",
-                    "command": action_result["action_verb"],
-                    "target_feature": action_result["target_feature"],
-                    "confidence": action_result["confidence"],
-                    "query": transcript_text
-                }
-            
-            target = current_feature
-            if not target:
-                semantic_result = route_query_semantically(
-                    transcript_text,
-                    get_embedder(),
-                    FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH
-                )
-                target = semantic_result["target_feature"]
-            
-            return {
-                "transcript": transcript_result,
-                "intent": "action",
-                "command": action_result["action_verb"],
-                "target_feature": target,
-                "confidence": action_result["confidence"],
-                "query": transcript_text
-            }
-
-        if current_feature and current_feature in FEATURE_NAMES: 
-             return {
-                "transcript": transcript_result,
-                "intent": "query",
-                "command": current_feature, # Route to the active feature
-                "confidence": 0.90, # High confidence because context is provided
-                "query": transcript_text
-             }
-
-        # Option B: Context unknown or it's a query needing routing
-        # Use semantic similarity to find the best feature *for the query*
-        semantic_routing_result = route_query_semantically(
+        image_bytes = await image.read() if image else None
+        routed = await asyncio.to_thread(
+            voice_command_router.handle,
             transcript_text,
-            get_embedder(),
-            FEATURE_KEYWORDS_FOR_SEMANTIC_MATCH # Use the detailed keywords here
+            session_id,
+            {"image_bytes": image_bytes} if image_bytes else {},
         )
-
         return {
+            **routed.model_dump(mode="json"),
             "transcript": transcript_result,
-            "intent": semantic_routing_result["intent"],
-            "command": semantic_routing_result["target_feature"],
-            "confidence": semantic_routing_result["confidence"],
-            "query": semantic_routing_result["query"]
+            "query": transcript_text,
+            "intent": routed.route.operation.value,
+            "command": routed.route.domain.value,
+            "target_feature": routed.route.domain.value,
+            "confidence": routed.route.confidence,
         }
 
+    except ConversationStoreError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as e:
         print(f"❌ Error processing voice command: {e}")
         import traceback
@@ -620,6 +672,60 @@ class NewsQuery(BaseModel):
 
 class ChatbotQuery(BaseModel):
     message: str
+
+
+class VoiceCommandQuery(BaseModel):
+    text: str
+    session_id: str
+
+
+@app.post("/voice-command/text")
+@app.post("/voice-command", include_in_schema=False)
+async def route_text_voice_command(request: VoiceCommandQuery):
+    """Route a text command through the same backend pipeline used after ASR."""
+    try:
+        response = await asyncio.to_thread(
+            voice_command_router.handle,
+            request.text,
+            request.session_id,
+        )
+        return response.model_dump(mode="json")
+    except ConversationStoreError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/voice-command/audio")
+async def route_audio_voice_command(
+    audio: UploadFile = File(...),
+    image: UploadFile | None = File(None),
+    session_id: str = Form(...),
+):
+    """Run ASR, route the command, execute it, and persist conversation context."""
+    suffix = os.path.splitext(audio.filename or "")[1] or ".webm"
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
+            temp.write(await audio.read())
+            temp_path = temp.name
+        transcript_result = await asyncio.to_thread(transcribe_audio, temp_path)
+        if not transcript_result or transcript_result.get("error"):
+            raise HTTPException(status_code=503, detail="Transcription failed.")
+        transcript = transcript_result.get("transcript", "").strip()
+        if not transcript:
+            raise HTTPException(status_code=400, detail="Empty transcript received.")
+        image_bytes = await image.read() if image else None
+        response = await asyncio.to_thread(
+            voice_command_router.handle,
+            transcript,
+            session_id,
+            {"image_bytes": image_bytes} if image_bytes else {},
+        )
+        return {**response.model_dump(mode="json"), "asr": transcript_result}
+    except ConversationStoreError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 @app.post("/fetching_news")
 async def fetching_news(news_query: str = Form(...)):

@@ -68,6 +68,18 @@ Identifies music playing in the environment and provides details such as song ti
 
 ## Backend Setup
 
+### Start Redis
+
+Voice command conversation state is stored in the repository-managed Redis
+container. From the repository root, run:
+
+```bash
+docker compose up -d redis
+```
+
+Redis is available to the local backend at `redis://localhost:6379/0`. Its data
+is persisted in the Docker named volume `sighttech-redis-data`.
+
 ### 1. Navigate to the backend directory:
 
 ```bash
