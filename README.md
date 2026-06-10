@@ -51,6 +51,7 @@ Assists users in movement and orientation by providing voice-guided directions, 
 💬 **Chatbot**
 
 An AI-based conversational assistant that answers questions, explains information, and supports users via voice or text interaction.
+
 <img width="753" height="424" alt="image" src="https://github.com/user-attachments/assets/5199ad5e-e7d3-49d5-8178-70825b5f5735" />
 
 📰 **News**
