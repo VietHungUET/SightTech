@@ -1,11 +1,14 @@
 import base64
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+from urllib.parse import urlparse
 
 import cv2
 import numpy as np
 import requests
+from newspaper import Article
 
 try:
     from pyzbar.pyzbar import ZBarSymbol, decode as zbar_decode
@@ -97,7 +100,17 @@ class BarcodeScannerService:
             }
 
         for detection in detections:
-            product = self._fetch_product_info(detection.code)
+            product = None
+            
+            # 1. Check if it is a URL (QR Code often contains URL)
+            if self._is_url(detection.code):
+                logger.info(f"Barcode {detection.code} identified as URL. Fetching content...")
+                product = self._fetch_url_info(detection.code)
+            
+            # 2. If not URL or URL fetch failed, try OpenFoodFacts
+            if not product:
+                product = self._fetch_product_info(detection.code)
+                
             if not product:
                 continue
 
@@ -131,32 +144,143 @@ class BarcodeScannerService:
             "detections": detection_payload,
         }
 
+    def _is_url(self, text: str) -> bool:
+        # Basic URL validation
+        regex = re.compile(
+            r'^(?:http|ftp)s?://'  # http:// or https://
+            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
+            r'localhost|'  # localhost...
+            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+            r'(?::\d+)?'  # optional port
+            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+        return re.match(regex, text) is not None
+
+    def _fetch_url_info(self, url: str) -> Optional[Dict[str, Any]]:
+        try:
+            article = Article(url)
+            article.download()
+            article.parse()
+            
+            # Try to perform NLP to get summary and keywords
+            try:
+                article.nlp()
+                summary = article.summary
+                keywords = article.keywords
+            except Exception:
+                # NLP might fail if nltk data is missing
+                summary = ""
+                keywords = []
+
+            # Determine description: prefer summary, then meta_description, then text
+            description = summary
+            if not description:
+                description = article.meta_description
+            if not description:
+                description = article.text[:500]
+            
+            # Clean up description
+            if description:
+                description = description.strip()
+                if len(description) > 500:
+                    description = description[:497] + "..."
+
+            # Extract domain as brand
+            domain = urlparse(url).netloc
+            brand = domain.replace("www.", "")
+
+            return {
+                "name": article.title,
+                "brand": brand,
+                "description": description,
+                "image_url": article.top_image,
+                "source": "url",
+                "quantity": None,
+                "category": "Web Page",
+                "labels": ", ".join(keywords) if keywords else None,
+                "nutri_score": None,
+                "ingredients": None,
+                "allergens": None,
+                "nutrition": None
+            }
+        except Exception as exc:
+            logger.warning(f"Failed to fetch URL info for {url}: {exc}")
+            return None
+
     def _fetch_product_info(self, barcode: str) -> Optional[Dict[str, Any]]:
-        # url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
-        url = f"https://world.openfoodfacts.net/api/v2/product/{barcode}.json"
+        # 1. Try Open*Facts family
+        open_facts_domains = [
+            "world.openfoodfacts.org",
+            "world.openbeautyfacts.org",
+            "world.openpetfoodfacts.org",
+            "world.openproductsfacts.org"
+        ]
 
+        for domain in open_facts_domains:
+            product = self._fetch_from_open_facts(barcode, domain)
+            if product:
+                logger.info(f"Found product for {barcode} on {domain}")
+                return product
+
+        # 2. Try UPCitemdb (Trial API)
+        product = self._fetch_from_upcitemdb(barcode)
+        if product:
+            logger.info(f"Found product for {barcode} on UPCitemdb")
+            return product
+
+        return None
+
+    def _fetch_from_open_facts(self, barcode: str, domain: str) -> Optional[Dict[str, Any]]:
+        url = f"https://{domain}/api/v2/product/{barcode}.json"
         try:
-            response = self._session.get(url, timeout=8)
-        except requests.RequestException as exc:
-            logger.warning("Failed to reach OpenFoodFacts for %s: %s", barcode, exc)
-            return None
+            response = self._session.get(url, timeout=5)
+            if response.status_code == 200:
+                payload = response.json()
+                if payload.get("status") == 1:
+                    product = payload.get("product") or {}
+                    return self._format_product_result(product, barcode)
+        except Exception as exc:
+            logger.warning(f"Failed to fetch from {domain} for {barcode}: {exc}")
+        return None
 
-        if response.status_code != 200:
-            logger.info("OpenFoodFacts returned status %s for barcode %s", response.status_code, barcode)
-            return None
-
+    def _fetch_from_upcitemdb(self, barcode: str) -> Optional[Dict[str, Any]]:
+        url = f"https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}"
         try:
-            payload = response.json()
-        except ValueError as exc:
-            logger.warning("Invalid JSON from OpenFoodFacts for %s: %s", barcode, exc)
-            return None
+            response = self._session.get(url, timeout=5)
+            if response.status_code == 200:
+                payload = response.json()
+                if payload.get("code") == "OK" and payload.get("total", 0) > 0:
+                    item = payload["items"][0]
+                    
+                    # Extract price
+                    price = None
+                    if item.get("lowest_recorded_price") and item.get("lowest_recorded_price") > 0:
+                        price = f"${item.get('lowest_recorded_price')}"
+                    elif item.get("offers") and len(item.get("offers")) > 0:
+                         offer = item.get("offers")[0]
+                         if offer.get('price'):
+                            price = f"{offer.get('price')} {offer.get('currency', '')}"
 
-        if payload.get("status") != 1:
-            logger.info("OpenFoodFacts has no entry for barcode %s", barcode)
-            return None
-
-        product = payload.get("product") or {}
-        return self._format_product_result(product, barcode)
+                    return {
+                        "barcode": barcode,
+                        "name": item.get("title") or UNKNOWN_VALUE,
+                        "brand": item.get("brand"),
+                        "description": item.get("description"),
+                        "category": item.get("category"),
+                        "image_url": item.get("images")[0] if item.get("images") else None,
+                        "source": "upcitemdb",
+                        "price": price,
+                        # Fill missing fields
+                        "type": None,
+                        "quantity": None,
+                        "labels": None,
+                        "nutri_score": None,
+                        "ingredients": None,
+                        "allergens": None,
+                        "nutrition": None
+                    }
+        except Exception as exc:
+            logger.warning(f"Failed to fetch from UPCitemdb for {barcode}: {exc}")
+        return None
 
     def _decode_image_bytes(self, image_bytes: bytes) -> np.ndarray:
         frame_array = np.frombuffer(image_bytes, dtype=np.uint8)
@@ -507,6 +631,7 @@ class BarcodeScannerService:
             "allergens": self._clean_text(product.get("allergens")),
             "image_url": self._clean_text(product.get("image_url")),
             "nutrition": nutrition,
+            "price": self._clean_text(product.get("price")),
         }
 
         return {key: value for key, value in result.items() if value not in (None, "", [])}
@@ -519,6 +644,12 @@ class BarcodeScannerService:
             parts.append(f"This is {name} by {brand}.")
         elif name:
             parts.append(f"This is {name}.")
+
+        price = self._clean_text(product.get("price"))
+        if price:
+            parts.append(f"Price: {price}.")
+        else:
+            parts.append("The provider does not provide detailed pricing for this product.")
 
         quantity = self._clean_text(product.get("quantity"))
         if quantity:
