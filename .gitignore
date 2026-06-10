@@ -31,3 +31,6 @@ backend/models/
 *.log
 
 backend/debug_captures/
+backend/.ultralytics/
+backend/Ultralytics/
+yolo*.pt
